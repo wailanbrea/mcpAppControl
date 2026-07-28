@@ -1,7 +1,7 @@
 {
   "name": "mcp-control-bsolutions-v1",
   "productName": "MCP Control Bsolutions V1",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "MCP Control Bsolutions V1 — Panel de control de granja Android",
   "main": "main.js",
   "author": "MCP AppControl",

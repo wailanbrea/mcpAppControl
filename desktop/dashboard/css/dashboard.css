@@ -503,3 +503,22 @@ body.bsolutions-theme {
 
 /* Texto de ayuda en sub-pestañas de acciones */
 .sub-tab-hint { grid-column:1/-1; font-size:11.5px; color:#64748b; line-height:1.5; margin:8px 2px 0; }
+
+/* ============================================================
+   CAMPAÑAS DE VIEWS
+   ============================================================ */
+.vw-stats { display:flex; gap:10px; padding:10px 16px; border-bottom:1px solid #e2e8f0; background:#fafbfc; flex-wrap:wrap; }
+.vw-stat { display:flex; flex-direction:column; align-items:center; min-width:80px; padding:4px 10px; }
+.vw-stat .vw-n { font-size:20px; font-weight:800; color:#0f172a; }
+.vw-stat .vw-l { font-size:11px; color:#64748b; }
+.vw-badge { font-size:10px; padding:1px 7px; border-radius:6px; font-weight:700; color:#fff; margin-left:4px; vertical-align:middle; }
+.vw-badge.p-tiktok { background:#111; }
+.vw-badge.p-youtube { background:#dc2626; }
+.vw-badge.p-instagram { background:#c13584; }
+.vw-badge.p-twitter { background:#0f172a; }
+.vw-h4 { margin:14px 0 8px; font-size:13px; color:#334155; }
+.vw-preview { margin-top:10px; display:flex; flex-wrap:wrap; gap:6px; }
+.vw-prev-head { width:100%; font-size:12px; color:#64748b; margin-bottom:4px; }
+.vw-prev-chip { background:#eef2ff; color:#3730a3; border-radius:6px; padding:2px 7px; font-size:11.5px; }
+.vw-detail-head h3 { margin:0 0 4px; font-size:16px; }
+.vw-detail-stats { display:flex; gap:8px; flex-wrap:wrap; margin:12px 0; padding:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; }

@@ -100,6 +100,19 @@ app.whenReady().then(async () => {
     database = db;
     console.log(`[db] motor de almacenamiento: ${db.engine || 'sql.js'}`);
 
+    // 1b. Recuperación de estados colgados de una sesión anterior (crash/cierre a
+    // mitad de rutina): sin esto, dispositivos quedaban 'busy' y tareas 'running'
+    // para siempre. Se resetean al arrancar.
+    try {
+      const ts = dbServer.now();
+      const dev = db.run("UPDATE devices SET status='online', current_task_id=NULL WHERE status='busy'").changes;
+      db.run("UPDATE tasks SET status='failed', error_message='Interrumpida por reinicio de la app', completed_at=?, updated_at=? WHERE status='running'", [ts, ts]);
+      db.run("UPDATE task_assignments SET status='failed', completed_at=?, updated_at=? WHERE status IN ('running','assigned')", [ts, ts]);
+      try { db.run("UPDATE view_sessions SET status='failed', updated_at=? WHERE status='running'", [ts]); } catch (_) {}
+      try { db.run("UPDATE view_campaigns SET status='failed', updated_at=? WHERE status='running'", [ts]); } catch (_) {}
+      if (dev) console.log(`[recover] ${dev} dispositivos liberados de estado 'busy' tras reinicio`);
+    } catch (e) { console.error('[recover]', e.message); }
+
     // 2. Inicializar lógica de negocio y despacho
     logic.init(db, WS_PORT);
     alerts.init(db);

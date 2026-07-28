@@ -1,0 +1,60 @@
+# IDE y sistema operativo
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Variables, secretos y certificados
+**/.env
+**/.env.*
+!**/.env.example
+*.key
+*.jks
+*.keystore
+*.p12
+*.pem
+
+# Dependencias y artefactos PHP
+backend/vendor/
+backend/storage/framework/cache/**
+backend/storage/framework/sessions/**
+backend/storage/framework/views/**
+backend/storage/logs/**
+backend/bootstrap/cache/*.php
+backend/.phpunit.result.cache
+!backend/storage/**/.gitignore
+!backend/bootstrap/cache/.gitignore
+
+# Node / TypeScript / Electron
+**/node_modules/
+mcp-server/dist/
+mcp-server/bundle/
+desktop/release/
+desktop/release-*/
+desktop/appcontrol.sqlite*
+desktop/settings.json
+desktop/screenshots/
+desktop/vendor/php/
+
+# Android / Gradle
+**/.gradle/
+**/build/
+**/local.properties
+**/captures/
+*.apk
+*.aab
+
+# Herramientas de referencia propietarias; no forman parte del producto
+panda/
+
+# Logs y temporales
+*.log
+*.tmp
+*.bak
+*.pid
+
+# Salida de la skill graphify (no es parte de la app)
+graphify-out/

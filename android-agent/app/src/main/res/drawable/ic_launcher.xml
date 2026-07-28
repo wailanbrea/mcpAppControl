@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Background -->
+    <path
+        android:fillColor="#2196F3"
+        android:pathData="M0,0h108v108h-108z" />
+
+    <!-- Android Robot Body -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M45,35 L63,35 L63,73 L45,73 Z" />
+
+    <!-- Android Robot Head -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M48,28 C50.2,28 52,29.8 52,32 C52,34.2 50.2,36 48,36 C45.8,36 44,34.2 44,32 C44,29.8 45.8,28 48,28 Z" />
+
+    <!-- Android Robot Eyes -->
+    <path
+        android:fillColor="#2196F3"
+        android:pathData="M47,30 L49,30 L49,32 L47,32 Z" />
+    <path
+        android:fillColor="#2196F3"
+        android:pathData="M51,30 L53,30 L53,32 L51,32 Z" />
+
+    <!-- Connection Lines -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:pathData="M48,73 L48,85" />
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:pathData="M60,73 L60,85" />
+
+    <!-- Signal Waves -->
+    <path
+        android:fillColor="#4CAF50"
+        android:pathData="M42,88 C42,86 44,84 48,84 C52,84 54,86 54,88 L54,90 L42,90 Z" />
+</vector>

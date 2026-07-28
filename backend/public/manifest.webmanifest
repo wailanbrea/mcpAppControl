@@ -1,0 +1,19 @@
+{
+  "name": "MCP AppControl",
+  "short_name": "MCP Control",
+  "description": "Consola local para administrar y visualizar dispositivos Android.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#101217",
+  "theme_color": "#1b78cb",
+  "icons": [
+    {
+      "src": "/dashboard/icons/mcp-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:background="@color/black">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Header -->
+        <TextView
+            android:id="@+id/tvTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="MCP Agent v2.0"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            android:gravity="center" />
+
+        <TextView
+            android:id="@+id/tvSubtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Automatización de Dispositivos Android"
+            android:textSize="14sp"
+            android:textColor="#AAAAAA"
+            android:gravity="center"
+            android:layout_marginTop="4dp" />
+
+        <!-- Connection Status Card -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/card_background"
+            android:padding="16dp"
+            android:layout_marginTop="24dp">
+
+            <TextView
+                android:id="@+id/tvStatusLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="ESTADO DE CONEXIÓN"
+                android:textSize="12sp"
+                android:textColor="#888888" />
+
+            <TextView
+                android:id="@+id/tvStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Desconectado"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:textColor="#FF9800"
+                android:layout_marginTop="4dp" />
+
+            <TextView
+                android:id="@+id/tvConnectionDetails"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Servidor: ws://10.0.2.2:6001"
+                android:textSize="12sp"
+                android:textColor="#CCCCCC"
+                android:layout_marginTop="8dp" />
+
+        </LinearLayout>
+
+        <!-- Device Information Card -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/card_background"
+            android:padding="16dp"
+            android:layout_marginTop="16dp">
+
+            <TextView
+                android:id="@+id/tvDeviceInfoLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="INFORMACIÓN DEL DISPOSITIVO"
+                android:textSize="12sp"
+                android:textColor="#888888" />
+
+            <TextView
+                android:id="@+id/tvSerialNumber"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Dispositivo: device-XXXXXXXX"
+                android:textSize="14sp"
+                android:textColor="#FFFFFF"
+                android:layout_marginTop="8dp" />
+
+            <TextView
+                android:id="@+id/tvDeviceModel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Modelo: Samsung Galaxy S21"
+                android:textSize="14sp"
+                android:textColor="#FFFFFF"
+                android:layout_marginTop="4dp" />
+
+            <TextView
+                android:id="@+id/tvAndroidVersion"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Android: 13 (API 33)"
+                android:textSize="14sp"
+                android:textColor="#FFFFFF"
+                android:layout_marginTop="4dp" />
+
+        </LinearLayout>
+
+        <!-- Accessibility Service Card -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/card_background"
+            android:padding="16dp"
+            android:layout_marginTop="16dp">
+
+            <TextView
+                android:id="@+id/tvAccessibilityLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="SERVICIO DE ACCESIBILIDAD"
+                android:textSize="12sp"
+                android:textColor="#888888" />
+
+            <Button
+                android:id="@+id/btnToggleAccessibility"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Activar Servicio de Accesibilidad"
+                android:backgroundTint="#FF9800"
+                android:textColor="#FFFFFF"
+                android:layout_marginTop="8dp" />
+
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/btnToggleAgent"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Conectar agente"
+            android:backgroundTint="@color/primary"
+            android:textColor="#FFFFFF"
+            android:layout_marginTop="16dp" />
+
+        <!-- Last Command Card -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/card_background"
+            android:padding="16dp"
+            android:layout_marginTop="16dp">
+
+            <TextView
+                android:id="@+id/tvLastCommandLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="ÚLTIMO COMANDO EJECUTADO"
+                android:textSize="12sp"
+                android:textColor="#888888" />
+
+            <TextView
+                android:id="@+id/tvLastCommand"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Ninguno"
+                android:textSize="14sp"
+                android:textColor="#FFFFFF"
+                android:layout_marginTop="8dp" />
+
+        </LinearLayout>
+
+        <!-- Action Buttons -->
+        <Button
+            android:id="@+id/btnConfigureServer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Configurar Servidor"
+            android:backgroundTint="#2196F3"
+            android:textColor="#FFFFFF"
+            android:layout_marginTop="24dp" />
+
+        <!-- Logs Section -->
+        <TextView
+            android:id="@+id/tvLogsLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="REGISTRO DE ACTIVIDAD"
+            android:textSize="12sp"
+            android:textColor="#888888"
+            android:layout_marginTop="24dp" />
+
+        <ListView
+            android:id="@+id/lvLogs"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:background="#1E1E1E"
+            android:divider="#333333"
+            android:dividerHeight="1dp"
+            android:padding="8dp" />
+
+    </LinearLayout>
+
+</ScrollView>

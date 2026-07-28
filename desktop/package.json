@@ -1,0 +1,76 @@
+{
+  "name": "mcp-control-bsolutions-v1",
+  "productName": "MCP Control Bsolutions V1",
+  "version": "1.0.1",
+  "description": "MCP Control Bsolutions V1 — Panel de control de granja Android",
+  "main": "main.js",
+  "author": "MCP AppControl",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/hermes.test.js test/maintenance.test.js test/proxies.test.js test/server.test.js",
+    "mcp:bundle": "npm --prefix ../mcp-server run bundle",
+    "dist": "npm run mcp:bundle && electron-builder",
+    "dist:unsigned": "npm run mcp:bundle && electron-builder --config.win.signAndEditExecutable=false"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.10.0",
+    "express": "^5.2.1",
+    "sql.js": "^1.14.1",
+    "ws": "^8.21.1"
+  },
+  "devDependencies": {
+    "electron": "^32.2.0",
+    "electron-builder": "^24.13.3",
+    "node": "^24.18.0"
+  },
+  "build": {
+    "appId": "dev.mcp.appcontrol",
+    "productName": "MCP AppControl",
+    "npmRebuild": false,
+    "asarUnpack": [
+      "**/better-sqlite3/**",
+      "**/*.node"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.js",
+      "router.js",
+      "adb/**",
+      "server/**",
+      "!server/views/**",
+      "!server/BOT_FARM_PLAN.md",
+      "dashboard/**",
+      "node_modules/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "vendor/platform-tools",
+        "to": "platform-tools"
+      },
+      {
+        "from": "../mcp-server/bundle/appcontrol-mcp.cjs",
+        "to": "mcp-server/appcontrol-mcp.cjs"
+      },
+      {
+        "from": "node_modules/node/bin/node.exe",
+        "to": "node-runtime/node.exe"
+      },
+      {
+        "from": "vendor/node-runtime/NOTICE.txt",
+        "to": "node-runtime/NOTICE.txt"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false
+    }
+  }
+}

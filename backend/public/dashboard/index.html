@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP AppControl · Dashboard</title>
+    <meta name="theme-color" content="#1b78cb">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="icon" href="/dashboard/icons/mcp-icon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/dashboard/css/dashboard.css?v=20260718-5">
+</head>
+<body>
+    <header class="header">
+        <div>
+            <h1>MCP AppControl</h1>
+            <div class="subtitle">Orquestación y rutinas de dispositivos Android</div>
+        </div>
+        <div class="header-right">
+            <span id="connectionStatus" class="connection-status">
+                <span class="status-dot"></span> Conectando…
+            </span>
+            <button class="btn btn-ghost" onclick="changeToken()">Token</button>
+        </div>
+    </header>
+
+    <div class="stats-bar">
+        <div class="stat-card online"><div class="number" id="onlineDevices">0</div><div class="label">Online</div></div>
+        <div class="stat-card busy"><div class="number" id="busyDevices">0</div><div class="label">Ocupados</div></div>
+        <div class="stat-card offline"><div class="number" id="deviceOfflineCount">0</div><div class="label">Offline</div></div>
+        <div class="stat-card"><div class="number" id="completedTasks">0</div><div class="label">Tareas completadas</div></div>
+        <div class="stat-card"><div class="number" id="activeSchedules">0</div><div class="label">Rutinas activas</div></div>
+    </div>
+
+    <nav class="tabs">
+        <button class="tab active" data-tab="devices">Dispositivos</button>
+        <button class="tab" data-tab="routines">Rutinas</button>
+        <button class="tab" data-tab="schedules">Horarios</button>
+        <button class="tab" data-tab="logs">Registro</button>
+    </nav>
+
+    <main>
+        <!-- DISPOSITIVOS -->
+        <section id="devices" class="tab-panel active">
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Dispositivos</span>
+                    <input id="deviceSearch" class="input" placeholder="Buscar…" oninput="filterDevices(this.value)">
+                </div>
+                <div class="mirror-toolbar" role="toolbar" aria-label="Acciones de dispositivos">
+                    <button class="btn btn-primary" type="button" onclick="selectAllDevices()">Seleccionar todos</button>
+                    <button class="btn" type="button" onclick="clearDeviceSelection()">Deseleccionar</button>
+                    <span id="deviceSelectionCount" class="mirror-selection-count">0 seleccionados</span>
+                    <span class="mirror-toolbar-spacer"></span>
+                    <button class="btn btn-small" type="button" onclick="captureSelectedDeviceFrames()">Actualizar seleccionados</button>
+                </div>
+                <div class="mirror-toolbar batch-toolbar" role="toolbar" aria-label="Acción rápida por lotes">
+                    <span class="field-label" style="margin:0">⚡ Acción rápida:</span>
+                    <select id="batchCommand" class="input" style="max-width:280px" onchange="renderBatchParams()"></select>
+                    <span id="batchParams" style="display:flex;gap:8px;flex-wrap:wrap"></span>
+                    <button class="btn btn-primary btn-small" type="button" onclick="runBatchCommand()">Ejecutar en seleccionados</button>
+                    <span id="batchMsg" class="form-msg"></span>
+                </div>
+                <div id="devicesGrid" class="devices-grid"></div>
+            </div>
+            <div class="panel">
+                <div class="panel-header"><span class="panel-title">Grupos</span></div>
+                <div id="groupsList"></div>
+            </div>
+        </section>
+
+        <!-- RUTINAS -->
+        <section id="routines" class="tab-panel">
+            <div class="two-col">
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="panel-title">Constructor de rutinas</span>
+                    </div>
+                    <div class="panel-body">
+                        <label class="field-label">Nombre de la rutina</label>
+                        <input id="routineName" class="input" placeholder="Ej. Sesión Spotify + YouTube">
+                        <label class="field-label">Descripción (opcional)</label>
+                        <input id="routineDesc" class="input" placeholder="Qué hace esta rutina">
+
+                        <div class="routine-targets-header">
+                            <label class="field-label">Dispositivos que ejecutarán la rutina</label>
+                            <div class="routine-targets-actions">
+                                <button class="btn btn-small" type="button" onclick="useConsoleSelectionForRoutine()">Usar selección</button>
+                                <button class="btn btn-small" type="button" onclick="selectAllRoutineDevices()">Todos online</button>
+                                <button class="btn btn-small" type="button" onclick="clearRoutineDeviceSelection()">Ninguno</button>
+                            </div>
+                        </div>
+                        <p id="routineDevicesHint" class="routine-targets-hint">Carga de dispositivos pendiente.</p>
+                        <div id="routineDevices" class="routine-targets" aria-live="polite"></div>
+
+                        <div class="recipes">
+                            <span class="field-label">Recetas rápidas:</span>
+                            <button class="btn btn-small" onclick="loadRecipe('spotify')">🎵 Sesión Spotify</button>
+                            <button class="btn btn-small" onclick="loadRecipe('youtube')">▶️ Sesión YouTube</button>
+                            <button class="btn btn-small" onclick="loadRecipe('clear')">Limpiar</button>
+                        </div>
+
+                        <label class="field-label">Pasos</label>
+                        <div id="stepsList" class="steps-list"></div>
+                        <button class="btn btn-secondary" onclick="addStep()">+ Añadir paso</button>
+
+                        <div class="form-actions">
+                            <button class="btn btn-primary" onclick="saveRoutine()">Guardar rutina</button>
+                            <span id="routineMsg" class="form-msg"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="panel">
+                    <div class="panel-header"><span class="panel-title">Rutinas guardadas</span></div>
+                    <div id="routinesList"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- HORARIOS -->
+        <section id="schedules" class="tab-panel">
+            <div class="two-col">
+                <div class="panel">
+                    <div class="panel-header"><span class="panel-title">Programar rutina</span></div>
+                    <div class="panel-body">
+                        <label class="field-label">Nombre del horario</label>
+                        <input id="scheduleName" class="input" placeholder="Ej. Spotify mañanas">
+
+                        <label class="field-label">Rutina</label>
+                        <select id="scheduleWorkflow" class="input"></select>
+
+                        <label class="field-label">Grupo</label>
+                        <select id="scheduleGroup" class="input"></select>
+
+                        <label class="field-label">Modo</label>
+                        <div class="radio-row">
+                            <label><input type="radio" name="scheduleMode" value="loop" checked onchange="onModeChange()"> Bucle en franja</label>
+                            <label><input type="radio" name="scheduleMode" value="fixed_times" onchange="onModeChange()"> Horas fijas</label>
+                        </div>
+
+                        <div id="loopFields">
+                            <div class="inline-fields">
+                                <div><label class="field-label">Desde</label><input id="windowStart" type="time" class="input" value="09:00"></div>
+                                <div><label class="field-label">Hasta</label><input id="windowEnd" type="time" class="input" value="18:00"></div>
+                                <div><label class="field-label">Pausa entre vueltas (seg)</label><input id="loopGap" type="number" class="input" value="30" min="0"></div>
+                            </div>
+                        </div>
+
+                        <div id="fixedFields" style="display:none;">
+                            <label class="field-label">Horas (HH:MM)</label>
+                            <div id="timesList"></div>
+                            <button class="btn btn-small" onclick="addTime()">+ Añadir hora</button>
+                        </div>
+
+                        <label class="field-label">Días</label>
+                        <div id="daysRow" class="days-row"></div>
+
+                        <div class="form-actions">
+                            <button class="btn btn-primary" onclick="saveSchedule()">Guardar horario</button>
+                            <span id="scheduleMsg" class="form-msg"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="panel">
+                    <div class="panel-header"><span class="panel-title">Horarios activos</span></div>
+                    <div id="schedulesList"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- REGISTRO -->
+        <section id="logs" class="tab-panel">
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Registro de actividad en vivo</span>
+                    <button class="btn btn-small" onclick="clearLogs()">Limpiar</button>
+                </div>
+                <div id="liveLogs" class="logs"></div>
+            </div>
+        </section>
+    </main>
+
+    <div id="screenViewer" class="screen-viewer" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="screenViewerTitle">
+        <div class="screen-viewer-panel">
+            <div class="screen-viewer-header">
+                <div>
+                    <h2 id="screenViewerTitle">Pantalla del dispositivo</h2>
+                    <p id="screenViewerStatus" aria-live="polite">Esperando captura...</p>
+                </div>
+                <button class="btn btn-small" onclick="closeScreenViewer()">Cerrar</button>
+            </div>
+            <div class="screen-frame-wrap">
+                <img id="screenViewerImage" alt="Pantalla en tiempo real del dispositivo seleccionado">
+            </div>
+        </div>
+    </div>
+
+    <script src="/dashboard/js/dashboard.js?v=20260718-8"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
+        }
+    </script>
+</body>
+</html>

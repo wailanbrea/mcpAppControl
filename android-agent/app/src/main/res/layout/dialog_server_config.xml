@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:background="#1E1E1E">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="URL del Servidor WebSocket"
+        android:textSize="14sp"
+        android:textColor="#FFFFFF" />
+
+    <EditText
+        android:id="@+id/etServerUrl"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="ws://10.0.2.2:6001"
+        android:text="ws://10.0.2.2:6001"
+        android:inputType="textUri"
+        android:textColor="#FFFFFF"
+        android:textColorHint="#888888"
+        android:layout_marginTop="4dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Número de Serie del Dispositivo"
+        android:textSize="14sp"
+        android:textColor="#FFFFFF"
+        android:layout_marginTop="16dp" />
+
+    <EditText
+        android:id="@+id/etSerialNumber"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="device-XXXXXXXX"
+        android:inputType="text"
+        android:textColor="#FFFFFF"
+        android:textColorHint="#888888"
+        android:layout_marginTop="4dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Token de autenticación (opcional)"
+        android:textSize="14sp"
+        android:textColor="#FFFFFF"
+        android:layout_marginTop="16dp" />
+
+    <EditText
+        android:id="@+id/etAuthToken"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Bearer token compartido con el servidor"
+        android:inputType="textPassword"
+        android:textColor="#FFFFFF"
+        android:textColorHint="#888888"
+        android:layout_marginTop="4dp" />
+
+    <CheckBox
+        android:id="@+id/cbAutoConnect"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Conectar automáticamente al iniciar"
+        android:checked="true"
+        android:textColor="#FFFFFF"
+        android:layout_marginTop="16dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="end"
+        android:layout_marginTop="24dp">
+
+        <Button
+            android:id="@+id/btnCancelServerConfig"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Cancelar"
+            android:textColor="#FFFFFF" />
+
+        <Button
+            android:id="@+id/btnSaveServerConfig"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:text="Guardar"
+            android:backgroundTint="@color/primary"
+            android:textColor="#FFFFFF" />
+
+    </LinearLayout>
+
+</LinearLayout>

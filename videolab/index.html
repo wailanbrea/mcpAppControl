@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VideoLab - Plataforma de Prueba</title>
+    <link rel="stylesheet" href="css/videolab.css">
+</head>
+<body>
+    <!-- Header / Navbar -->
+    <header class="navbar">
+        <div class="navbar-left">
+            <div class="logo">
+                <span class="logo-icon">&#9654;</span>
+                <span class="logo-text">VideoLab</span>
+            </div>
+        </div>
+        <div class="search-bar" id="searchBar">
+            <input type="text" id="searchInput" placeholder="Buscar videos..." autocomplete="off">
+            <button id="searchButton" aria-label="Buscar">&#128269;</button>
+        </div>
+        <div class="navbar-right">
+            <span class="device-info" id="deviceInfo">Dispositivo: local</span>
+            <span class="connection-status" id="connectionStatus">Conectado</span>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+        <!-- Home / Browse View -->
+        <section id="homeView" class="view active">
+            <h2 class="section-title">Videos Disponibles</h2>
+            <div class="video-grid" id="videoGrid"></div>
+        </section>
+
+        <!-- Search Results View -->
+        <section id="searchResultsView" class="view">
+            <h2 class="section-title" id="searchTitle">Resultados de Búsqueda</h2>
+            <div class="video-grid" id="searchGrid"></div>
+        </section>
+
+        <!-- Video Player View -->
+        <section id="playerView" class="view">
+            <div class="player-container">
+                <div class="video-player" id="videoPlayer">
+                    <div class="playback-overlay" id="playbackOverlay">
+                        <button class="play-btn" id="playPauseBtn">&#9654;</button>
+                    </div>
+                    <div class="video-info-bar">
+                        <h1 id="videoTitle" class="video-title"></h1>
+                        <p id="videoChannel" class="video-channel"></p>
+                        <div class="video-stats">
+                            <span id="videoViews"></span>
+                            <span id="videoDate"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Engagement Actions -->
+                <div class="engagement-actions" id="engagementActions">
+                    <button class="action-btn like-btn" id="likeBtn">
+                        <span class="icon">&#9825;</span>
+                        <span class="count" id="likeCount">0</span>
+                        <span class="label">Me gusta</span>
+                    </button>
+                    <button class="action-btn dislike-btn" id="dislikeBtn">
+                        <span class="icon">&#9826;</span>
+                        <span class="count" id="dislikeCount">0</span>
+                        <span class="label">No me gusta</span>
+                    </button>
+                    <button class="action-btn subscribe-btn" id="subscribeBtn">
+                        <span class="icon">&#9734;</span>
+                        <span class="label">Suscribirse</span>
+                    </button>
+                </div>
+
+                <!-- Comments Section -->
+                <div class="comments-section" id="commentsSection">
+                    <h3>Comentarios (<span id="commentCount">0</span>)</h3>
+                    <div class="comment-input-area">
+                        <input type="text" id="commentInput" placeholder="Escribe un comentario...">
+                        <button id="publishCommentBtn">Publicar</button>
+                    </div>
+                    <div class="comments-list" id="commentsList"></div>
+                </div>
+
+                <!-- Back Button -->
+                <button class="back-btn" id="backBtn">&#8592; Volver</button>
+            </div>
+        </section>
+    </main>
+
+    <!-- Action Log Panel (for debugging/demo) -->
+    <aside class="action-log" id="actionLog">
+        <h3>Registro de Acciones</h3>
+        <div class="log-entries" id="logEntries"></div>
+    </aside>
+
+    <script src="js/videolab.js"></script>
+</body>
+</html>

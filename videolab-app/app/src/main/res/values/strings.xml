@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">VideoLab</string>
+    <string name="search_hint">Buscar videos...</string>
+    <string name="like_button">Me gusta</string>
+    <string name="comment_hint">Escribir un comentario...</string>
+    <string name="publish_button">Publicar</string>
+    <string name="subscribe_button">Suscribirse</string>
+    <string name="video_not_found">Video no encontrado</string>
+    <string name="search_results">%d resultados encontrados</string>
+</resources>

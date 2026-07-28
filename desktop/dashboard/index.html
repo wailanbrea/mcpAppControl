@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP Control Bsolutions V1</title>
+    <meta name="theme-color" content="#4f46e5">
+    <link rel="icon" href="/dashboard/icons/mcp-icon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="/dashboard/css/dashboard.css?v=20260725-v3">
+</head>
+<body class="bsolutions-theme">
+
+    <!-- TOP HEADER NAVBAR -->
+    <header class="top-header">
+        <div class="brand-section">
+            <div class="brand-logo">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                <span class="brand-name">MCP Control Bsolutions V1</span>
+            </div>
+            <span class="version-badge">v1.0.1</span>
+        </div>
+
+        <div class="top-header-right">
+            <div id="connectionStatus" class="connection-status">
+                <span class="status-dot"></span> Conectado
+            </div>
+        </div>
+    </header>
+
+    <div class="app-layout">
+        <!-- MAIN CONTENT CONTAINER -->
+        <main class="main-content">
+
+            <!-- TAB: DISPOSITIVOS (Matriz Principal) -->
+            <section id="devices" class="tab-panel active">
+                <div class="devices-layout">
+
+                    <!-- IZQUIERDA: PANEL DE ACCIONES Y GRUPOS -->
+                    <aside class="actions-panel">
+                        <!-- SECCIÓN ACCIONES -->
+                        <div class="panel-card">
+                            <div class="card-title">ACCIONES</div>
+
+                            <!-- Sub-tabs Acciones -->
+                            <div class="sub-tabs">
+                                <button class="sub-tab active" onclick="switchActionSubTab('general', this)">General</button>
+                                <button class="sub-tab" onclick="switchActionSubTab('adb', this)">Comandos ADB</button>
+                                <button class="sub-tab" onclick="switchActionSubTab('scripts', this)">Scripts</button>
+                                <button class="sub-tab" onclick="switchActionSubTab('hermes', this)">Hermes</button>
+                            </div>
+
+                            <!-- Acciones sobre los dispositivos SELECCIONADOS -->
+                            <div id="actionSubTab-general" class="action-buttons-grid">
+                                <button class="action-btn purple" style="grid-column: 1 / -1; background: #4f46e5; font-size: 13px; font-weight: 700; padding: 10px;" onclick="promptPlayCustomTrackUrl()" title="Abre Spotify/YouTube y reproduce la canción del enlace que pegues, en los dispositivos seleccionados">🎧 Reproducir canción por enlace ▾</button>
+                                <button class="action-btn purple" onclick="promptOpenApp()" title="Abre una app por su nombre de paquete (ej. com.spotify.music)">🎵 Abrir app ▾</button>
+                                <button class="action-btn purple" onclick="promptCloseApp()" title="Fuerza el cierre de una app por su nombre de paquete">🚪 Cerrar app ▾</button>
+                                <button class="action-btn purple" onclick="promptClearApp()" title="Borra los datos y la caché de una app (como recién instalada)">🧹 Borrar datos ▾</button>
+                                <button class="action-btn purple" onclick="promptGrantPermission()" title="Concede un permiso a una app sin tocar el diálogo del sistema">🔑 Conceder permiso ▾</button>
+                                <button class="action-btn purple" onclick="promptInstallApk()" title="Instala un APK/XAPK desde una ruta local en los dispositivos">📦 Instalar APK</button>
+                                <button class="action-btn purple" onclick="promptUninstallApk()" title="Desinstala una app por su nombre de paquete">🗑️ Desinstalar app</button>
+                                <button class="action-btn purple" onclick="promptUploadGallery()" title="Envía fotos/vídeos a la galería de los dispositivos">🖼️ Subir a galería</button>
+                            </div>
+
+                            <!-- Comandos ADB directos sobre los seleccionados -->
+                            <div id="actionSubTab-adb" class="action-buttons-grid" style="display:none;">
+                                <button class="action-btn blue" onclick="quickAction('SCREEN_ON')" title="Enciende la pantalla (WAKEUP)">💡 Encender pantalla</button>
+                                <button class="action-btn blue" onclick="quickAction('SCREEN_OFF')" title="Apaga la pantalla (SLEEP)">🌙 Apagar pantalla</button>
+                                <button class="action-btn blue" onclick="quickAction('UNLOCK')" title="Intenta desbloquear (sin PIN)">🔓 Desbloquear</button>
+                                <button class="action-btn blue" onclick="quickAction('PRESS_HOME')" title="Botón Inicio">🏠 Inicio</button>
+                                <button class="action-btn blue" onclick="quickAction('PRESS_BACK')" title="Botón Atrás">↩️ Atrás</button>
+                                <button class="action-btn blue" onclick="quickAction('INPUT_KEYEVENT', { keycode: 187 })" title="Abre la vista de apps recientes">🗂️ Recientes</button>
+                                <button class="action-btn blue" onclick="quickAction('INPUT_KEYEVENT', { keycode: 24 })" title="Sube el volumen">🔊 Volumen +</button>
+                                <button class="action-btn blue" onclick="quickAction('INPUT_KEYEVENT', { keycode: 25 })" title="Baja el volumen">🔉 Volumen −</button>
+                                <button class="action-btn blue" onclick="quickAction('DEVICE_STABILIZE', { keep_awake: true, screen_timeout_minutes: 30, animation_scale: 0 })" title="Despierta, mantiene encendido y reduce animaciones; verifica cada ajuste">🧰 Estabilizar</button>
+                                <button class="action-btn blue" onclick="quickAction('DEVICE_NETWORK_STATUS')" title="Lee proxy, IP local, ruta, fecha, zona horaria y ajustes de pantalla">📡 Diagnóstico red</button>
+                                <button class="action-btn blue" onclick="quickAction('CLEAR_PROXY')" title="Elimina todas las claves del proxy global y verifica conexión directa">🚫 Limpiar proxy</button>
+                                <button class="action-btn blue" style="grid-column: 1 / -1;" onclick="quickAction('SET_TIME_AUTO')" title="Activa hora y zona horaria automáticas (evita relojes desfasados que rompen logins/HTTPS)">🕐 Estabilizar hora y fecha</button>
+                                <button class="action-btn" style="grid-column: 1 / -1; background:#dc2626; color:#fff; font-weight:700;" onclick="quickAction('CHECK_BAN')" title="Lee la pantalla y detecta baneo, captcha o verificación">🛡️ Revisar baneo/captcha</button>
+                                <button class="action-btn blue" style="grid-column: 1 / -1;" onclick="quickAction('REBOOT')" title="Reinicia los dispositivos seleccionados">🔄 Reiniciar dispositivos</button>
+                            </div>
+
+                            <!-- Rutinas automatizadas -->
+                            <div id="actionSubTab-scripts" class="action-buttons-grid" style="display:none;">
+                                <button class="action-btn" style="grid-column: 1 / -1; font-weight: 700; background: #4f46e5; color:#fff; padding: 12px; font-size:13px;" onclick="openRoutineBuilder()" title="Crea rutinas paso a paso, prográmalas por horas o en bucle, y gestiona cuentas">🛠️ Constructor de rutinas y horarios</button>
+                                <p class="sub-tab-hint">Crea rutinas y horarios para los dispositivos seleccionados.</p>
+                            </div>
+
+                            <!-- Conector Hermes visible como opción principal -->
+                            <div id="actionSubTab-hermes" class="action-buttons-grid" style="display:none;">
+                                <button class="action-btn" style="grid-column: 1 / -1; font-weight: 700; background: #111827; color:#fff; padding: 12px; font-size:13px;" onclick="openHermesSetup()" title="Instala o repara automáticamente la conexión local de Hermes con AppControl">🤖 Conectar / reparar Hermes</button>
+                                <p class="sub-tab-hint">Hermes debe estar instalado en esta misma PC. AppControl detectará su ruta y registrará el MCP incluido.</p>
+                            </div>
+                        </div>
+
+                        <!-- SECCIÓN GRUPOS -->
+                        <div class="panel-card">
+                            <div class="card-header-flex">
+                                <span class="card-title">GRUPOS</span>
+                                <button class="btn btn-primary-sm" onclick="addNewGroupPrompt()">+ Agregar grupo</button>
+                            </div>
+
+                            <div class="group-select-bar">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAllDevices(this.checked)">
+                                    <span>Todos los dispositivos (<span id="totalDevicesCount">0</span>)</span>
+                                </label>
+                                <button class="link-btn-sm" onclick="assignSelectedToGroup()">Mover a +</button>
+                            </div>
+                            <div id="groupSelectionCount" class="selection-status-text">Seleccionado: <span id="selectedCountNum">0</span> Unidades</div>
+
+                            <!-- Paginación de Unidades -->
+                            <div class="pagination-pills" id="paginationPills">
+                                <button class="page-pill active">1</button>
+                            </div>
+
+                            <div id="groupsList" class="groups-mini-list"></div>
+                        </div>
+                    </aside>
+
+                    <!-- CENTRO: CUADRÍCULA DE PANTALLAS (Wall of Devices) -->
+                    <main class="matrix-main-view">
+                        <!-- BARRA SUPERIOR DE MATRIZ -->
+                        <div class="matrix-top-bar">
+                            <div class="left-tools">
+                                <span class="total-counter">Total <strong id="matrixTotalDevices">0</strong></span>
+                                <button class="btn btn-accent-sm" onclick="scanTcpDevices()" title="Conecta un dispositivo por WiFi indicando su IP:puerto (adb connect)">📱 Conectar por WiFi (TCP)</button>
+                                <button class="btn btn-tool-sm" onclick="loadAll()" title="Recarga la lista y el estado de los dispositivos">🔄 Actualizar</button>
+                            </div>
+                            <div class="right-tools">
+                                <div class="view-mode-toggle">
+                                    <button class="toggle-btn active" id="btnViewGrid" onclick="setMatrixViewMode('grid')">⣿ Cuadrícula</button>
+                                    <button class="toggle-btn" id="btnViewList" onclick="setMatrixViewMode('list')">≡ Lista</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- BUSCADOR RÁPIDO DE MATRIZ -->
+                        <div class="matrix-search-bar">
+                            <input id="deviceSearch" class="search-input" placeholder="🔍 Buscar por nombre, número o serie de dispositivo..." oninput="filterDevices(this.value)">
+                        </div>
+
+                        <!-- CONTENEDOR DE PANTALLAS (GRID DE TELÉFONOS MCP CONTROL BSOLUTIONS) -->
+                        <div id="devicesGrid" class="devices-matrix-grid"></div>
+                    </main>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- VENTANA FLOTANTE DE CONTROL INTERACTIVO DE DISPOSITIVO (FLOATING MIRROR WINDOW) -->
+    <div id="floatingMirrorWindow" class="floating-mirror-window" hidden>
+        <div class="floating-mirror-header">
+            <div class="window-title-info">
+                <span class="window-badge-num" id="mirrorDeviceNum">1</span>
+                <span class="status-dot-green"></span>
+                <span class="window-dev-status" id="mirrorDeviceStatus">Listo</span>
+            </div>
+            <button class="window-close-btn" onclick="closeScreenViewer()">✕</button>
+        </div>
+
+        <div class="floating-mirror-body">
+            <!-- PANTALLA EN VIVO DEL TELÉFONO -->
+            <div class="phone-screen-container">
+                <img id="screenViewerImage" class="phone-screen-img" alt="Pantalla en tiempo real" onmousedown="handleMouseDown(event)" onmouseup="handleMouseUp(event)" onwheel="handleWheel(event)" style="cursor: grab;" title="Clic para tocar, arrastra para deslizar, rueda del ratón para scroll">
+                <div class="phone-overlay-status" id="screenViewerStatus">Conectando...</div>
+            </div>
+
+            <!-- BARRA LATERAL DERECHA DE HERRAMIENTAS ADJUNTAS (MCP CONTROL BSOLUTIONS CONTROLS) -->
+            <div class="mirror-vertical-toolbar">
+                <button class="vtool-btn" onclick="sendVirtualControl('ROTATE')" title="Rotar pantalla">🔄</button>
+                <button class="vtool-btn" onclick="sendVirtualControl('PRESS_HOME')" title="Inicio (Home)">🏠</button>
+                <button class="vtool-btn" onclick="sendVirtualControl('PRESS_BACK')" title="Atrás (Back)">↩️</button>
+                <button class="vtool-btn" onclick="sendVirtualControl('SCREEN_ON')" title="Encender/Apagar Pantalla">💡</button>
+                <button class="vtool-btn" onclick="sendVirtualControl('INPUT_KEYEVENT', { keycode: 24 })" title="Subir Volumen">🔊</button>
+                <button class="vtool-btn" onclick="sendVirtualControl('INPUT_KEYEVENT', { keycode: 25 })" title="Bajar Volumen">🔉</button>
+                <button class="vtool-btn" onclick="sendVirtualControl('OPEN_APP', { packageName: 'com.zhiliaoapp.musically' })" title="Abrir TikTok">🎵</button>
+                <button class="vtool-btn" onclick="sendVirtualText()" title="Escribir texto">⌨️</button>
+                <button class="vtool-btn" onclick="sendVirtualControl('INPUT_KEYEVENT', { keycode: 187 })" title="Aplicaciones Recientes">🤖</button>
+                <button class="vtool-btn" onclick="promptUploadGallery()" title="Subir Fotos / Galería">🖼️</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FOOTER DE ESTADO MCP CONTROL BSOLUTIONS -->
+    <footer class="bottom-status-bar">
+        <span class="status-metric">Esperando: <strong id="statusWaitingCount">0</strong></span>
+        <span class="status-metric">En ejecución: <strong id="statusRunningCount" class="text-orange">0</strong></span>
+        <span class="status-metric">Éxito: <strong id="statusSuccessCount" class="text-green">0</strong></span>
+        <span class="status-metric">Fallado: <strong id="statusFailedCount" class="text-red">0</strong></span>
+    </footer>
+    <!-- CONTENEDOR OCULTO PARA LOGS EN VIVO -->
+    <div id="liveLogs" style="display:none;"></div>
+
+    <!-- MODAL CUSTOM IN-APP DIALOG (REEMPLAZO TOTAL DE PROMPT) -->
+    <div id="inputModal" class="custom-modal-overlay" hidden>
+        <div class="custom-modal-box">
+            <h3 id="inputModalTitle">Título del diálogo</h3>
+            <p id="inputModalDesc" class="muted-text"></p>
+            <input id="inputModalField" class="modal-input" placeholder="">
+            <div class="modal-actions">
+                <button class="btn btn-secondary-sm" onclick="closeInputModal()">Cancelar</button>
+                <button class="btn btn-primary-sm" id="inputModalConfirmBtn" style="padding: 6px 14px;">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/dashboard/js/dashboard.js?v=20260725-v5"></script>
+    <script src="/dashboard/js/routines.js?v=20260725-v5"></script>
+    <script src="/dashboard/js/monitor-ui.js?v=20260725-v5"></script>
+</body>
+</html>

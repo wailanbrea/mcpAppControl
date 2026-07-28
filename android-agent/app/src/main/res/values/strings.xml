@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MCP Agent</string>
+    <string name="accessibility_service_description">Servicio de accesibilidad para automatización de dispositivos Android en MCP AppControl.</string>
+
+    <!-- Connection Status -->
+    <string name="status_connected">✓ Conectado</string>
+    <string name="status_disconnected">✗ Desconectado</string>
+    <string name="status_connecting">Conectando...</string>
+    <string name="status_error">Error de conexión</string>
+
+    <!-- Device Info -->
+    <string name="device_info_label">INFORMACIÓN DEL DISPOSITIVO</string>
+    <string name="serial_number_hint">Número de serie del dispositivo</string>
+    <string name="model_label">Modelo:</string>
+    <string name="android_version_label">Android:</string>
+
+    <!-- Accessibility Service -->
+    <string name="accessibility_service_label">SERVICIO DE ACCESIBILIDAD</string>
+    <string name="btn_enable_accessibility">Activar Servicio de Accesibilidad</string>
+    <string name="accessibility_enabled">✓ Servicio de Accesibilidad Activo</string>
+
+    <!-- Commands -->
+    <string name="last_command_label">ÚLTIMO COMANDO EJECUTADO</string>
+    <string name="no_commands_yet">Ninguno</string>
+
+    <!-- Configuration -->
+    <string name="btn_configure_server">Configurar Servidor</string>
+    <string name="server_url_hint">ws://10.0.2.2:6001</string>
+    <string name="auto_connect_label">Conectar automáticamente al iniciar</string>
+
+    <!-- Logs -->
+    <string name="logs_label">REGISTRO DE ACTIVIDAD</string>
+
+    <!-- Dialogs -->
+    <string name="dialog_config_server_title">Configurar Servidor</string>
+    <string name="dialog_save">Guardar</string>
+    <string name="dialog_cancel">Cancelar</string>
+    <string name="dialog_accessibility_title">Servicio de Accesibilidad</string>
+    <string name="dialog_accessibility_message">Para habilitar el servicio, ve a Configuración > Accesibilidad y activa MCP Agent.</string>
+
+    <!-- Toast Messages -->
+    <string name="toast_connected">Conectado al servidor</string>
+    <string name="toast_disconnected">Desconectado del servidor</string>
+    <string name="toast_connection_error">Error de conexión</string>
+    <string name="toast_accessibility_enabled">Servicio de accesibilidad activo</string>
+    <string name="toast_config_saved">Configuración guardada</string>
+</resources>

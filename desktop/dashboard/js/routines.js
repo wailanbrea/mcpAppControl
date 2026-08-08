@@ -155,7 +155,7 @@
           </div>
           <div id="rtPane-accounts" class="rt-pane" hidden>
             <div class="rt-col rt-list-col">
-              <div class="rt-col-head"><span>Cuentas</span><button class="rt-btn primary" onclick="rtNewAccount()">+ Nueva</button></div>
+              <div class="rt-col-head"><span>Cuentas</span><span><button class="rt-btn" onclick="rtOpenImport()" title="Pega muchas cuentas de una vez">📥 Importar</button> <button class="rt-btn primary" onclick="rtNewAccount()">+ Nueva</button></span></div>
               <div id="rtAccountList" class="rt-list"></div>
             </div>
             <div class="rt-col rt-editor-col">
@@ -559,6 +559,65 @@
   }
 
   window.rtNewAccount = () => { editingAccountId = null; renderAccountEditor(); renderAccountList(); };
+
+  // ---- Import masivo de cuentas ----
+  window.rtOpenImport = () => {
+    document.getElementById('rtImportModal')?.remove();
+    const ov = document.createElement('div');
+    ov.id = 'rtImportModal';
+    ov.className = 'rt-overlay';
+    ov.style.zIndex = '10002';
+    ov.onclick = (e) => { if (e.target === ov) ov.remove(); };
+    ov.innerHTML = `
+      <div class="rt-modal" style="width:min(560px,94vw);height:auto;max-height:90vh">
+        <div class="rt-head"><div class="rt-tabs"><button class="rt-tab active">📥 Importar cuentas</button></div><button class="rt-close" onclick="document.getElementById('rtImportModal').remove()">✕</button></div>
+        <div class="rt-editor">
+          <div class="rt-field"><label>Plataforma (para todas)</label><input id="impPlatform" type="text" placeholder="instagram, tiktok, youtube…"></div>
+          <div class="rt-field"><label>Cuentas (una por línea)</label>
+            <textarea id="impText" rows="10" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #cbd5e1;border-radius:8px;font-family:monospace;font-size:12.5px" placeholder="usuario,contraseña,email,secreto_totp&#10;usuario2,contraseña2&#10;usuario3:contraseña3"></textarea>
+          </div>
+          <p class="rt-hint">Formatos por línea: <code>usuario,clave,email,totp</code> (CSV) o <code>usuario:clave</code>. Email y TOTP son opcionales.</p>
+          <div class="rt-editor-actions">
+            <button class="rt-btn primary" onclick="rtDoImport()">Importar</button>
+          </div>
+          <div id="impMsg" class="rt-msg"></div>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+  };
+
+  function parseAccountsText(text, platform) {
+    const rows = [];
+    for (const raw of String(text).split(/\r?\n/)) {
+      const line = raw.trim();
+      if (!line) continue;
+      let parts;
+      if (line.includes(',')) parts = line.split(',').map(s => s.trim());
+      else if (line.includes(':')) { const i = line.indexOf(':'); parts = [line.slice(0, i).trim(), line.slice(i + 1).trim()]; }
+      else parts = [line];
+      const [username, password, email, totp_secret] = parts;
+      if (!username && !email) continue;
+      const acc = { platform: platform || undefined, username };
+      if (password) acc.password = password;
+      if (email) acc.email = email;
+      if (totp_secret) acc.totp_secret = totp_secret;
+      rows.push(acc);
+    }
+    return rows;
+  }
+
+  window.rtDoImport = async () => {
+    const msg = $('impMsg');
+    const platform = $('impPlatform').value.trim();
+    const rows = parseAccountsText($('impText').value, platform);
+    if (!rows.length) { msg.textContent = 'No hay cuentas válidas que importar.'; msg.className = 'rt-msg err'; return; }
+    try {
+      const r = await apiFetch('/accounts/import', { method: 'POST', body: JSON.stringify(rows) });
+      msg.textContent = `✔ ${r.data?.imported ?? rows.length} cuentas importadas.`; msg.className = 'rt-msg ok';
+      await refreshAccounts(); renderAccountList();
+      setTimeout(() => document.getElementById('rtImportModal')?.remove(), 1200);
+    } catch (e) { msg.textContent = 'Error: ' + e.message; msg.className = 'rt-msg err'; }
+  };
   window.rtEditAccount = (id) => { editingAccountId = id; renderAccountEditor(cacheAccounts.find(a => a.id === id)); renderAccountList(); };
 
   function renderAccountEditor(a) {

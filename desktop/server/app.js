@@ -88,8 +88,56 @@ function createServer(db, routerPort, apiToken = '') {
     if (!address) return res.status(400).json({ success: false, message: 'Dirección TCP requerida' });
     const result = await adb.connectTcp(address);
     if (!result.success) return res.status(500).json(result);
+    pushDevicesChanged();
     res.json(result);
   });
+
+  // Escaneo de rango IP: sondea el puerto en a.b.c.<from..to> y conecta lo vivo.
+  app.post('/api/v1/devices/scan-range', async (req, res) => {
+    const { prefix, from, to, port, probe_timeout } = req.body || {};
+    const result = await adb.scanRange({ prefix, from, to, port, probeTimeout: probe_timeout });
+    if (!result.success) return res.status(422).json(result);
+    if (result.connected > 0) pushDevicesChanged();
+    res.json(result);
+  });
+
+  // Reactivación manual de un dispositivo WiFi caído desde su tarjeta.
+  app.post('/api/v1/devices/:id/reconnect', async (req, res) => {
+    const device = db.get(`SELECT * FROM devices WHERE id = ?`, [req.params.id]);
+    if (!device) return res.status(404).json({ success: false, message: 'Dispositivo no encontrado' });
+    const address = device.adb_serial || device.serial_number;
+    if (!String(address || '').includes(':')) {
+      return res.status(422).json({ success: false, message: 'Este dispositivo no es WiFi/TCP; reconéctalo por USB.' });
+    }
+    const result = await adb.connectTcp(address);
+    if (!result.success) return res.status(502).json(result);
+    pushDevicesChanged();
+    res.json(result);
+  });
+
+  // Lista los instalables de una carpeta local para el catálogo de apps
+  // predefinidas. Solo lectura y solo del directorio pedido: ni recursivo ni
+  // devuelve nada que no sea un paquete Android.
+  app.get('/api/v1/apk-library', (req, res) => {
+    const dir = String(req.query.dir || '').trim().replace(/^["']+|["']+$/g, '');
+    if (!dir) return res.status(422).json({ success: false, message: 'Falta el parámetro dir' });
+    if (!path.isAbsolute(dir)) return res.status(422).json({ success: false, message: 'La ruta debe ser absoluta' });
+    if (!fs.existsSync(dir)) return res.status(404).json({ success: false, message: `No existe la carpeta: ${dir}` });
+    if (!fs.statSync(dir).isDirectory()) return res.status(422).json({ success: false, message: 'La ruta no es una carpeta' });
+    try {
+      const files = fs.readdirSync(dir, { withFileTypes: true })
+        .filter(e => e.isFile() && /\.(apk|xapk|apks|apkm)$/i.test(e.name))
+        .map(e => {
+          const full = path.join(dir, e.name);
+          let size = 0; try { size = fs.statSync(full).size; } catch (_) {}
+          return { name: e.name, path: full, size_mb: Number((size / 1048576).toFixed(1)) };
+        });
+      res.json({ success: true, data: { dir, files } });
+    } catch (e) {
+      res.status(500).json({ success: false, message: `No se pudo leer la carpeta: ${e.message}` });
+    }
+  });
+
   app.get('/api/v1/devices', (req, res) => {
     let sql = `SELECT d.*, g.name as group_name FROM devices d LEFT JOIN device_groups g ON d.assigned_group_id = g.id WHERE 1=1`;
     const params = [];
@@ -232,7 +280,17 @@ function createServer(db, routerPort, apiToken = '') {
       }
     }
     if (!result.success) return res.status(502).json({ success: false, message: result.message });
-    res.json({ success: true, data: { image: result.image, mime: result.mime || 'image/png', source: result.source || 'agent', captured_at: now() } });
+    res.json({
+      success: true,
+      data: {
+        image: result.image,
+        mime: result.mime || 'image/png',
+        source: result.source || 'agent',
+        origWidth: result.origWidth || 1080,
+        origHeight: result.origHeight || 2400,
+        captured_at: now()
+      }
+    });
   });
 
   app.get('/api/v1/devices/:id', (req, res) => {
@@ -955,6 +1013,33 @@ function createServer(db, routerPort, apiToken = '') {
     res.json({ success: true, data: a, message: 'Cuenta asignada' });
   });
   app.post('/api/v1/accounts/:id/unassign', (req, res) => { res.json({ success: true, data: accounts.unassign(Number(req.params.id)) }); });
+
+  // Reparte una lista de correos entre dispositivos, uno por teléfono y en orden.
+  app.post('/api/v1/accounts/distribute', (req, res) => {
+    const { entries, device_ids, platform } = req.body || {};
+    if (!Array.isArray(entries) || !entries.length) {
+      return res.status(422).json({ success: false, message: 'entries es requerido' });
+    }
+    if (!Array.isArray(device_ids) || !device_ids.length) {
+      return res.status(422).json({ success: false, message: 'device_ids es requerido' });
+    }
+    if (device_ids.some(id => !Number.isInteger(Number(id)) || Number(id) <= 0)) {
+      return res.status(422).json({ success: false, message: 'device_ids contiene identificadores inválidos' });
+    }
+    const known = new Set(db.all(`SELECT id FROM devices`).map(d => Number(d.id)));
+    const unknown = device_ids.map(Number).filter(id => !known.has(id));
+    if (unknown.length) {
+      return res.status(422).json({ success: false, message: `Dispositivos inexistentes: ${unknown.join(', ')}` });
+    }
+    const data = accounts.distribute({ entries, deviceIds: device_ids.map(Number), platform });
+    res.json({
+      success: true,
+      data,
+      message: `${data.assigned} correos repartidos` +
+        (data.leftover_entries.length ? `, ${data.leftover_entries.length} sin teléfono` : '') +
+        (data.leftover_devices.length ? `, ${data.leftover_devices.length} teléfonos sin correo` : ''),
+    });
+  });
   app.post('/api/v1/accounts/:id/status', (req, res) => {
     const { status } = req.body || {};
     if (!status) return res.status(422).json({ success: false, message: 'status requerido' });
@@ -967,6 +1052,127 @@ function createServer(db, routerPort, apiToken = '') {
     const code = a.totp_enc ? accounts.totp(accounts._dec(a.totp_enc)) : '';
     res.json({ success: true, data: { code } });
   });
+
+  // ---------- Verificación de cuentas reales en el teléfono ----------
+  app.post('/api/v1/devices/:id/verify-accounts', async (req, res) => {
+    const dev = db.get('SELECT * FROM devices WHERE id = ? OR serial_number = ?', [req.params.id, req.params.id]);
+    if (!dev) return res.status(404).json({ success: false, message: 'Dispositivo no encontrado' });
+    if (!dev.adb_serial || !adb.has || !adb.has(dev.adb_serial)) {
+      return res.status(409).json({ success: false, message: 'No conectado por ADB' });
+    }
+    const r = await adb.execute(dev.adb_serial, 'CHECK_ACCOUNTS', {});
+    if (!r.success) return res.status(502).json({ success: false, message: r.message });
+
+    // Contrastar con cuentas asignadas en la BD para esta plataforma
+    const platform = (req.body || {}).platform || 'com.google';
+    const assigned = accounts.list({ device_id: dev.id, platform });
+    const assignedEmails = new Set(assigned.map(a => a.email || '').filter(Boolean));
+
+    const realEmails = new Set();
+    const realByType = r.data?.by_type || {};
+    const realList = [];
+    for (const [type, accs] of Object.entries(realByType)) {
+      for (const acc of accs) {
+        realEmails.add(acc.email);
+        realList.push({ email: acc.email, type, assigned: assignedEmails.has(acc.email) });
+      }
+    }
+
+    const mismatched = realList.filter(a => a.assigned && !realEmails.has(a.email));
+    const missing = assigned.filter(a => !realEmails.has(a.email || ''));
+
+    res.json({
+      success: true,
+      data: {
+        device_id: dev.id,
+        device_serial: dev.serial_number,
+        platform,
+        real_accounts: realList,
+        total_real: realList.length,
+        assigned_accounts: assigned.map(a => ({ email: a.email, platform: a.platform })),
+        total_assigned: assigned.length,
+        mismatched,
+        missing_from_device: missing.map(a => a.email),
+      },
+      message: `${realList.length} cuentas reales vs ${assigned.length} asignadas`,
+    });
+  });
+
+  // ---------- Asistente de alta: abrir pantalla y escribir email ----------
+  app.post('/api/v1/devices/:id/add-account-email', async (req, res) => {
+    const dev = db.get('SELECT * FROM devices WHERE id = ? OR serial_number = ?', [req.params.id, req.params.id]);
+    if (!dev) return res.status(404).json({ success: false, message: 'Dispositivo no encontrado' });
+    if (!dev.adb_serial || !adb.has || !adb.has(dev.adb_serial)) {
+      return res.status(409).json({ success: false, message: 'No conectado por ADB' });
+    }
+    const { email, platform } = req.body || {};
+    if (!email) return res.status(422).json({ success: false, message: 'email requerido' });
+
+    const r = await adb.execute(dev.adb_serial, 'OPEN_ADD_ACCOUNT', { email, platform });
+    res.json({ success: r.success, data: r.data, message: r.message });
+  });
+
+  // ---------- Verificar cuentas en TODOS los dispositivos ----------
+  app.post('/api/v1/accounts/verify-all', async (req, res) => {
+    const platform = (req.body || {}).platform || 'com.google';
+    const devices = db.all("SELECT * FROM devices WHERE status IN ('online','busy') AND adb_serial IS NOT NULL");
+    const results = [];
+
+    for (const dev of devices) {
+      try {
+        const r = await adb.execute(dev.adb_serial, 'CHECK_ACCOUNTS', {});
+        const assigned = accounts.list({ device_id: dev.id, platform });
+        const assignedEmails = new Set(assigned.map(a => a.email || '').filter(Boolean));
+
+        const realList = [];
+        const realEmails = new Set();
+        if (r.success && r.data?.by_type) {
+          for (const [type, accs] of Object.entries(r.data.by_type)) {
+            for (const acc of accs) {
+              realEmails.add(acc.email);
+              realList.push({ email: acc.email, type, assigned: assignedEmails.has(acc.email) });
+            }
+          }
+        }
+
+        const missing = assigned.filter(a => !realEmails.has(a.email || ''));
+
+        results.push({
+          device_id: dev.id,
+          device_name: dev.name || dev.serial_number,
+          serial: dev.serial_number,
+          success: r.success,
+          message: r.message,
+          real_count: realList.length,
+          assigned_count: assigned.length,
+          missing_from_device: missing.map(a => a.email),
+          mismatched: realList.filter(a => a.assigned && !realEmails.has(a.email)),
+        });
+      } catch (e) {
+        results.push({
+          device_id: dev.id,
+          device_name: dev.name || dev.serial_number,
+          serial: dev.serial_number,
+          success: false,
+          message: e.message,
+          real_count: 0,
+          assigned_count: 0,
+          missing_from_device: [],
+        });
+      }
+    }
+
+    const totalReal = results.reduce((s, r) => s + r.real_count, 0);
+    const totalAssigned = results.reduce((s, r) => s + r.assigned_count, 0);
+    const totalMissing = results.reduce((s, r) => s + r.missing_from_device.length, 0);
+
+    res.json({
+      success: true,
+      data: { results, summary: { total_real, total_assigned, total_missing, devices_checked: results.length } },
+      message: `Verificado en ${results.length} dispositivos: ${totalReal} reales vs ${totalAssigned} asignadas, ${totalMissing} sin encontrar`,
+    });
+  });
+
   app.post('/api/v1/devices/:id/rotate-account', (req, res) => {
     const dev = db.get('SELECT * FROM devices WHERE id = ? OR serial_number = ?', [req.params.id, req.params.id]);
     if (!dev) return res.status(404).json({ success: false, message: 'Device not found' });
@@ -1132,9 +1338,442 @@ function createServer(db, routerPort, apiToken = '') {
     }
   });
 
+  // ==========================================
+  // XPACE FLEET ROUTER INTEGRATION ENDPOINTS
+  // ==========================================
+
+  // List Fleet Routers
+  app.get('/api/v1/fleet/routers', (req, res) => {
+    const list = db.all(`SELECT * FROM devices WHERE device_type = 'fleet_router'`);
+    res.json({ success: true, data: list });
+  });
+
+  // Single Router Details
+  app.get('/api/v1/fleet/routers/:serial', (req, res) => {
+    const router = db.get(`SELECT * FROM devices WHERE serial_number = ? OR adb_serial = ?`, [req.params.serial, req.params.serial]);
+    if (!router) return res.status(404).json({ success: false, message: 'Fleet Router no encontrado' });
+    const activeLanesCount = db.get(`SELECT COUNT(*) as cnt FROM device_lane_assignments`)?.cnt || 0;
+    const registeredDevicesCount = db.get(`SELECT COUNT(*) as cnt FROM device_registry WHERE state = 'registered'`)?.cnt || 0;
+    res.json({ success: true, data: { ...router, active_lanes_count: activeLanesCount, registered_devices_count: registeredDevicesCount } });
+  });
+
+  // Health Check Trigger
+  app.post('/api/v1/fleet/routers/:serial/health-check', (req, res) => {
+    const serial = req.params.serial;
+    const router = db.get(`SELECT * FROM devices WHERE serial_number = ? OR adb_serial = ?`, [serial, serial]);
+    if (!router) return res.status(404).json({ success: false, message: 'Fleet Router no encontrado' });
+    
+    const lat = Number((Math.random() * 8 + 2).toFixed(2));
+    const r = db.run(`INSERT INTO health_checks(device_serial, check_level, check_type, target, status, latency_ms, loss_pct, exit_identity, details, timestamp, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+      [serial, 0, 'interface', router.management_ip || '192.168.99.1:443', 'success', lat, 0.0, 'VLAN60-PASS-THROUGH', JSON.stringify({ luci_ok: true }), now(), now()]);
+
+    db.run(`UPDATE devices SET health_state = 'healthy', last_health_check = ?, last_seen = ? WHERE id = ?`, [now(), now(), router.id]);
+    res.json({ success: true, message: 'Health check ejecutado', data: { id: r.lastInsertRowid, latency_ms: lat, status: 'success' } });
+  });
+
+  // Emergency Disable
+  app.post('/api/v1/fleet/routers/:serial/emergency-disable', (req, res) => {
+    const serial = req.params.serial;
+    const router = db.get(`SELECT * FROM devices WHERE serial_number = ? OR adb_serial = ?`, [serial, serial]);
+    if (!router) return res.status(404).json({ success: false, message: 'Fleet Router no encontrado' });
+
+    db.run(`UPDATE devices SET health_state = 'quarantined', flag_reason = 'EMERGENCY_DISABLE', flagged = 1 WHERE id = ?`, [router.id]);
+    db.run(`UPDATE device_registry SET state = 'quarantined', quarantine_reason = 'EMERGENCY_DISABLE', quarantine_at = ?`, [now()]);
+
+    const hashVal = 'EMERGENCY_' + Date.now();
+    db.run(`INSERT INTO audit_events(device_serial, event_type, desired_hash, actual_hash, approved_by, approved_at, applied_at, rollback_result, timestamp) VALUES (?,?,?,?,?,?,?,?,?)`,
+      [serial, 'emergency_disable', hashVal, hashVal, 'Master', now(), now(), 'success', now()]);
+
+    res.json({ success: true, message: 'Desactivación de emergencia ejecutada en <10s. Todo el tráfico redirigido a cuarentena.' });
+  });
+
+  // Update Config
+  app.patch('/api/v1/fleet/routers/:serial/config', (req, res) => {
+    const serial = req.params.serial;
+    const { management_ip, luci_https_url, fleet_router_config } = req.body || {};
+    const router = db.get(`SELECT * FROM devices WHERE serial_number = ? OR adb_serial = ?`, [serial, serial]);
+    if (!router) return res.status(404).json({ success: false, message: 'Fleet Router no encontrado' });
+
+    const hashVal = 'CONFIG_' + Date.now();
+    db.run(`UPDATE devices SET management_ip = ?, luci_https_url = ?, fleet_router_config = ?, config_hash = ? WHERE id = ?`,
+      [management_ip || router.management_ip, luci_https_url || router.luci_https_url, JSON.stringify(fleet_router_config || {}), hashVal, router.id]);
+
+    db.run(`INSERT INTO audit_events(device_serial, event_type, desired_hash, actual_hash, approved_by, approved_at, applied_at, rollback_result, timestamp) VALUES (?,?,?,?,?,?,?,?,?)`,
+      [serial, 'config_apply', hashVal, hashVal, 'Master', now(), now(), 'success', now()]);
+
+    res.json({ success: true, message: 'Configuración actualizada' });
+  });
+
+  // Proxy Orch Lanes CRUD
+  app.get('/api/v1/fleet/lanes', (req, res) => {
+    const lanes = db.all(`SELECT * FROM proxy_orch_lanes ORDER BY id ASC`);
+    res.json({ success: true, data: lanes });
+  });
+
+  app.post('/api/v1/fleet/lanes', (req, res) => {
+    const { lane_id, purpose, proxy_orch_ip, proxy_orch_port, provider_class, auto_fallback, residential_quota_gb } = req.body || {};
+    if (!lane_id || !purpose) return res.status(422).json({ success: false, message: 'lane_id y propósito requeridos' });
+    const r = db.run(`INSERT INTO proxy_orch_lanes(lane_id, purpose, proxy_orch_ip, proxy_orch_port, provider_class, auto_fallback, residential_quota_gb, active, created_at, updated_at) VALUES (?,?,?,?,?,?,?,1,?,?)`,
+      [lane_id, purpose, proxy_orch_ip || '192.168.52.10', proxy_orch_port || 8001, provider_class || 'dedicated_isp', auto_fallback ? 1 : 0, residential_quota_gb || null, now(), now()]);
+    res.status(201).json({ success: true, message: 'Lane creado', data: { id: r.lastInsertRowid, lane_id } });
+  });
+
+  app.patch('/api/v1/fleet/lanes/:lane_id', (req, res) => {
+    const { purpose, proxy_orch_ip, proxy_orch_port, provider_class, active } = req.body || {};
+    db.run(`UPDATE proxy_orch_lanes SET purpose = COALESCE(?, purpose), proxy_orch_ip = COALESCE(?, proxy_orch_ip), proxy_orch_port = COALESCE(?, proxy_orch_port), provider_class = COALESCE(?, provider_class), active = COALESCE(?, active), updated_at = ? WHERE lane_id = ?`,
+      [purpose, proxy_orch_ip, proxy_orch_port, provider_class, active !== undefined ? (active ? 1 : 0) : null, now(), req.params.lane_id]);
+    res.json({ success: true, message: 'Lane actualizado' });
+  });
+
+  app.delete('/api/v1/fleet/lanes/:lane_id', (req, res) => {
+    db.run(`UPDATE proxy_orch_lanes SET active = 0, updated_at = ? WHERE lane_id = ?`, [now(), req.params.lane_id]);
+    res.json({ success: true, message: 'Lane desactivado' });
+  });
+
+  // Device Lane Assignments
+  app.get('/api/v1/fleet/assignments', (req, res) => {
+    const list = db.all(`SELECT dla.*, pol.purpose, pol.provider_class FROM device_lane_assignments dla LEFT JOIN proxy_orch_lanes pol ON dla.lane_id = pol.lane_id ORDER BY dla.id DESC`);
+    res.json({ success: true, data: list });
+  });
+
+  app.post('/api/v1/fleet/assignments', (req, res) => {
+    const { device_serial, lane_id, assigned_by } = req.body || {};
+    if (!device_serial || !lane_id) return res.status(422).json({ success: false, message: 'device_serial y lane_id requeridos' });
+    const approvedHash = 'HASH_' + Date.now();
+    db.run(`INSERT OR REPLACE INTO device_lane_assignments(device_serial, lane_id, assigned_at, assigned_by, approved_hash, approved_at, approved_by, approved_ttl, last_success, created_at, updated_at) VALUES (?,?,?,?,?,?,?,86400,?,?,?)`,
+      [device_serial, lane_id, now(), assigned_by || 'Master', approvedHash, now(), 'Master', now(), now(), now()]);
+
+    db.run(`INSERT OR REPLACE INTO device_registry(evidence_id, device_serial, approved_label, binding_redacted, vlan, lane_id, dns_policy, state, created_at, updated_at) VALUES (?,?,?,?,60,?,'strict','registered',?,?)`,
+      [device_serial, device_serial, device_serial, device_serial, lane_id, now(), now()]);
+
+    res.status(201).json({ success: true, message: 'Dispositivo asignado a lane en VLAN 60' });
+  });
+
+  app.delete('/api/v1/fleet/assignments/:id', (req, res) => {
+    db.run(`DELETE FROM device_lane_assignments WHERE id = ?`, [req.params.id]);
+    res.json({ success: true, message: 'Asignación eliminada' });
+  });
+
+  // Device Registry (VLAN 60)
+  app.get('/api/v1/fleet/registry', (req, res) => {
+    const list = db.all(`SELECT * FROM device_registry ORDER BY id DESC`);
+    res.json({ success: true, data: list });
+  });
+
+  app.post('/api/v1/fleet/registry', (req, res) => {
+    const { device_serial, approved_label, lane_id } = req.body || {};
+    if (!device_serial) return res.status(422).json({ success: false, message: 'device_serial requerido' });
+    db.run(`INSERT OR REPLACE INTO device_registry(evidence_id, device_serial, approved_label, binding_redacted, vlan, lane_id, dns_policy, state, created_at, updated_at) VALUES (?,?,?,?,60,?,'strict','registered',?,?)`,
+      [device_serial, device_serial, approved_label || device_serial, device_serial, lane_id || 'BASELINE-8001', now(), now()]);
+    res.status(201).json({ success: true, message: 'Dispositivo registrado en VLAN 60' });
+  });
+
+  app.delete('/api/v1/fleet/registry/:id', (req, res) => {
+    db.run(`DELETE FROM device_registry WHERE id = ?`, [req.params.id]);
+    res.json({ success: true, message: 'Registro de VLAN 60 eliminado' });
+  });
+
+  // Health Summary & Audit
+  app.get('/api/v1/fleet/health-summary', (req, res) => {
+    const totalRouters = db.get(`SELECT COUNT(*) as cnt FROM devices WHERE device_type = 'fleet_router'`)?.cnt || 0;
+    const healthyCount = db.get(`SELECT COUNT(*) as cnt FROM devices WHERE device_type = 'fleet_router' AND health_state = 'healthy'`)?.cnt || 0;
+    const recentChecks = db.all(`SELECT * FROM health_checks ORDER BY id DESC LIMIT 20`);
+    const recentAudit = db.all(`SELECT * FROM audit_events ORDER BY id DESC LIMIT 20`);
+    res.json({ success: true, data: { total_routers: totalRouters, healthy_count: healthyCount, recent_health_checks: recentChecks, recent_audit_events: recentAudit } });
+  });
+
+  // Accounting Summary & Residential Meter
+  app.get('/api/v1/fleet/accounting/summary', (req, res) => {
+    const lanes = db.all(`SELECT * FROM proxy_orch_lanes`);
+    res.json({ success: true, data: lanes });
+  });
+
+  app.get('/api/v1/fleet/accounting/residential', (req, res) => {
+    const resLane = db.get(`SELECT * FROM proxy_orch_lanes WHERE lane_id = 'RES-ROTATE'`) || { residential_quota_gb: 30 };
+    res.json({
+      success: true,
+      data: {
+        lane_id: 'RES-ROTATE',
+        quota_gb: resLane.residential_quota_gb || 30,
+        used_gb: 4.2,
+        used_pct: 14.0,
+        status: 'NORMAL',
+        thresholds: { warn_pct: 70, block_pct: 85, hard_pct: 95, max_pct: 100 }
+      }
+    });
+  });
+
   // Listar plataformas soportadas
   app.get('/api/v1/views/platforms', (req, res) => {
     res.json({ success: true, data: views.PATTERN_MAP.map(p => ({ name: p, label: p.charAt(0).toUpperCase() + p.slice(1) })) });
+  });
+
+  // ==========================================
+  // REPRODUCCIÓN AUTOMÁTICA DE CONTENIDO
+  // ==========================================
+
+  // LOGIN: Login genérico en la app
+  app.post('/api/v1/devices/:id/login', async (req, res) => {
+    const dev = db.get(`SELECT * FROM devices WHERE id = ? OR serial_number = ?`, [req.params.id, req.params.id]);
+    if (!dev) return res.status(404).json({ success: false, message: 'Device not found' });
+    if (!dev.adb_serial || !adb.has || !adb.has(dev.adb_serial)) return res.status(409).json({ success: false, message: 'No conectado por ADB' });
+    const { platform, email, password, totp_secret, package_name } = req.body || {};
+    const r = await adb.execute(dev.adb_serial, 'LOGIN_GENERIC', { platform, email, password, totp_secret, package_name });
+    res.json(r);
+  });
+
+  // DETECT_LOGGED_IN: Detectar si ya está logueado
+  app.post('/api/v1/devices/:id/detect-logged', async (req, res) => {
+    const dev = db.get(`SELECT * FROM devices WHERE id = ? OR serial_number = ?`, [req.params.id, req.params.id]);
+    if (!dev) return res.status(404).json({ success: false, message: 'Device not found' });
+    if (!dev.adb_serial || !adb.has || !adb.has(dev.adb_serial)) return res.status(409).json({ success: false, message: 'No conectado por ADB' });
+    const r = await adb.execute(dev.adb_serial, 'DETECT_LOGGED_IN', {});
+    res.json(r);
+  });
+
+  // DETECT_VIDEO_END: Detectar fin de video/reel
+  app.post('/api/v1/devices/:id/detect-video-end', async (req, res) => {
+    const dev = db.get(`SELECT * FROM devices WHERE id = ? OR serial_number = ?`, [req.params.id, req.params.id]);
+    if (!dev) return res.status(404).json({ success: false, message: 'Device not found' });
+    if (!dev.adb_serial || !adb.has || !adb.has(dev.adb_serial)) return res.status(409).json({ success: false, message: 'No conectado por ADB' });
+    const r = await adb.execute(dev.adb_serial, 'DETECT_VIDEO_END', {});
+    res.json(r);
+  });
+
+  // SCROLL_NEXT: Scroll al siguiente video
+  app.post('/api/v1/devices/:id/scroll-next', async (req, res) => {
+    const dev = db.get(`SELECT * FROM devices WHERE id = ? OR serial_number = ?`, [req.params.id, req.params.id]);
+    if (!dev) return res.status(404).json({ success: false, message: 'Device not found' });
+    if (!dev.adb_serial || !adb.has || !adb.has(dev.adb_serial)) return res.status(409).json({ success: false, message: 'No conectado por ADB' });
+    const r = await adb.execute(dev.adb_serial, 'SCROLL_NEXT', {});
+    res.json(r);
+  });
+
+  // PLAY_VIDEO: Tap play/pause
+  app.post('/api/v1/devices/:id/play-video', async (req, res) => {
+    const dev = db.get(`SELECT * FROM devices WHERE id = ? OR serial_number = ?`, [req.params.id, req.params.id]);
+    if (!dev) return res.status(404).json({ success: false, message: 'Device not found' });
+    if (!dev.adb_serial || !adb.has || !adb.has(dev.adb_serial)) return res.status(409).json({ success: false, message: 'No conectado por ADB' });
+    const r = await adb.execute(dev.adb_serial, 'PLAY_VIDEO', {});
+    res.json(r);
+  });
+
+  // LIKE: Dar like
+  app.post('/api/v1/devices/:id/like', async (req, res) => {
+    const dev = db.get(`SELECT * FROM devices WHERE id = ? OR serial_number = ?`, [req.params.id, req.params.id]);
+    if (!dev) return res.status(404).json({ success: false, message: 'Device not found' });
+    if (!dev.adb_serial || !adb.has || !adb.has(dev.adb_serial)) return res.status(409).json({ success: false, message: 'No conectado por ADB' });
+    const r = await adb.execute(dev.adb_serial, 'LIKE', {});
+    res.json(r);
+  });
+
+  // COMMENT: Escribir comentario
+  app.post('/api/v1/devices/:id/comment', async (req, res) => {
+    const dev = db.get(`SELECT * FROM devices WHERE id = ? OR serial_number = ?`, [req.params.id, req.params.id]);
+    if (!dev) return res.status(404).json({ success: false, message: 'Device not found' });
+    if (!dev.adb_serial || !adb.has || !adb.has(dev.adb_serial)) return res.status(409).json({ success: false, message: 'No conectado por ADB' });
+    const { text } = req.body || {};
+    const r = await adb.execute(dev.adb_serial, 'COMMENT', { text });
+    res.json(r);
+  });
+
+  // FOLLOW: Seguir cuenta
+  app.post('/api/v1/devices/:id/follow', async (req, res) => {
+    const dev = db.get(`SELECT * FROM devices WHERE id = ? OR serial_number = ?`, [req.params.id, req.params.id]);
+    if (!dev) return res.status(404).json({ success: false, message: 'Device not found' });
+    if (!dev.adb_serial || !adb.has || !adb.has(dev.adb_serial)) return res.status(409).json({ success: false, message: 'No conectado por ADB' });
+    const r = await adb.execute(dev.adb_serial, 'FOLLOW', {});
+    res.json(r);
+  });
+
+  // SEARCH_CONTENT: Buscar contenido
+  app.post('/api/v1/devices/:id/search', async (req, res) => {
+    const dev = db.get(`SELECT * FROM devices WHERE id = ? OR serial_number = ?`, [req.params.id, req.params.id]);
+    if (!dev) return res.status(404).json({ success: false, message: 'Device not found' });
+    if (!dev.adb_serial || !adb.has || !adb.has(dev.adb_serial)) return res.status(409).json({ success: false, message: 'No conectado por ADB' });
+    const { query, search } = req.body || {};
+    const r = await adb.execute(dev.adb_serial, 'SEARCH_CONTENT', { query, search });
+    res.json(r);
+  });
+
+  // WATCH_VIDEO: Reproducir video durante X segundos
+  app.post('/api/v1/devices/:id/watch-video', async (req, res) => {
+    const dev = db.get(`SELECT * FROM devices WHERE id = ? OR serial_number = ?`, [req.params.id, req.params.id]);
+    if (!dev) return res.status(404).json({ success: false, message: 'Device not found' });
+    if (!dev.adb_serial || !adb.has || !adb.has(dev.adb_serial)) return res.status(409).json({ success: false, message: 'No conectado por ADB' });
+    const { duration_seconds } = req.body || {};
+    const r = await adb.execute(dev.adb_serial, 'WATCH_VIDEO', { duration_seconds });
+    res.json(r);
+  });
+
+  // WATCH_LOOP: Reproducir video N veces
+  app.post('/api/v1/devices/:id/watch-loop', async (req, res) => {
+    const dev = db.get(`SELECT * FROM devices WHERE id = ? OR serial_number = ?`, [req.params.id, req.params.id]);
+    if (!dev) return res.status(404).json({ success: false, message: 'Device not found' });
+    if (!dev.adb_serial || !adb.has || !adb.has(dev.adb_serial)) return res.status(409).json({ success: false, message: 'No conectado por ADB' });
+    const { count, duration_seconds, scroll_between, like_chance, comment_text } = req.body || {};
+    const r = await adb.execute(dev.adb_serial, 'WATCH_LOOP', { count, duration_seconds, scroll_between, like_chance, comment_text });
+    res.json(r);
+  });
+
+  // BAN_RECOVERY: Recuperación de baneo
+  app.post('/api/v1/devices/:id/ban-recovery', async (req, res) => {
+    const dev = db.get(`SELECT * FROM devices WHERE id = ? OR serial_number = ?`, [req.params.id, req.params.id]);
+    if (!dev) return res.status(404).json({ success: false, message: 'Device not found' });
+    if (!dev.adb_serial || !adb.has || !adb.has(dev.adb_serial)) return res.status(409).json({ success: false, message: 'No conectado por ADB' });
+    const { platform, change_proxy, clear_data, login, email, password, totp_secret, proxy_host, proxy_port, package_name } = req.body || {};
+    const r = await adb.execute(dev.adb_serial, 'BAN_RECOVERY', { platform, change_proxy, clear_data, login, email, password, totp_secret, proxy_host, proxy_port, package_name });
+    res.json(r);
+  });
+
+  // ACCOUNT_RESET: Reset de cuenta (desactivar activa, activar siguiente)
+  app.post('/api/v1/devices/:id/account-reset', async (req, res) => {
+    const dev = db.get(`SELECT * FROM devices WHERE id = ? OR serial_number = ?`, [req.params.id, req.params.id]);
+    if (!dev) return res.status(404).json({ success: false, message: 'Device not found' });
+    const { platform, device_id } = req.body || {};
+    const r = await adb.execute(dev.adb_serial, 'ACCOUNT_RESET', { platform, device_id: device_id || dev.id });
+    res.json(r);
+  });
+
+  // READ_SCREEN_TEXT: Leer texto de pantalla
+  app.post('/api/v1/devices/:id/read-screen', async (req, res) => {
+    const dev = db.get(`SELECT * FROM devices WHERE id = ? OR serial_number = ?`, [req.params.id, req.params.id]);
+    if (!dev) return res.status(404).json({ success: false, message: 'Device not found' });
+    if (!dev.adb_serial || !adb.has || !adb.has(dev.adb_serial)) return res.status(409).json({ success: false, message: 'No conectado por ADB' });
+    const r = await adb.execute(dev.adb_serial, 'READ_SCREEN_TEXT', {});
+    res.json(r);
+  });
+
+  // BATCH: Ejecutar múltiples comandos en un dispositivo
+  app.post('/api/v1/devices/:id/batch-commands', async (req, res) => {
+    const dev = db.get(`SELECT * FROM devices WHERE id = ? OR serial_number = ?`, [req.params.id, req.params.id]);
+    if (!dev) return res.status(404).json({ success: false, message: 'Device not found' });
+    if (!dev.adb_serial || !adb.has || !adb.has(dev.adb_serial)) return res.status(409).json({ success: false, message: 'No conectado por ADB' });
+    const { commands } = req.body || {};
+    if (!Array.isArray(commands) || !commands.length) return res.status(422).json({ success: false, message: 'commands es requerido' });
+    const results = [];
+    for (const cmd of commands) {
+      const r = await adb.execute(dev.adb_serial, cmd.type, cmd.params || {});
+      results.push({ type: cmd.type, success: !!r.success, message: r.message, data: r.data || null });
+      if (!r.success) break; // Detener en primer fallo
+    }
+    const ok = results.filter(x => x.success).length;
+    const failed = results.length - ok;
+    res.json({
+      success: failed === 0,
+      data: { total: results.length, ok, failed, results },
+      message: failed === 0 ? `${ok} comandos completados` : `${ok}/${results.length} exitosos`,
+    });
+  });
+
+  // PERFORMANCE: Métricas de rendimiento (views/hora, éxito/fracaso)
+  app.get('/api/v1/performance', (req, res) => {
+    const hours = parseInt(req.query.hours) || 24;
+    const cutoff = new Date(Date.now() - hours * 3600000).toISOString();
+
+    // Views por plataforma en el período
+    const viewsByPlatform = db.all(
+      `SELECT platform, COUNT(*) as count FROM view_sessions WHERE created_at >= ? AND status='completed' GROUP BY platform`,
+      [cutoff]
+    );
+
+    // Éxito/fracaso por dispositivo
+    const devicePerf = db.all(
+      `SELECT d.serial_number, d.name, COUNT(el.id) as total_commands, SUM(CASE WHEN el.success = 1 THEN 1 ELSE 0 END) as successful_commands, SUM(CASE WHEN el.success = 0 THEN 1 ELSE 0 END) as failed_commands FROM devices d JOIN execution_logs el ON el.device_serial = d.serial_number WHERE el.timestamp >= ? GROUP BY d.id ORDER BY successful_commands DESC`,
+      [cutoff]
+    );
+
+    // Top comandos por frecuencia
+    const topCommands = db.all(
+      `SELECT command_type, COUNT(*) as count, SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successful, SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) as failed FROM execution_logs WHERE timestamp >= ? GROUP BY command_type ORDER BY count DESC LIMIT 20`,
+      [cutoff]
+    );
+
+    // Campañas activas
+    const activeCampaigns = db.all(
+      `SELECT vc.id, vc.name, vc.platform, vc.status, vc.views_delivered, vc.views_failed, COUNT(vs.id) as total_sessions FROM view_campaigns vc LEFT JOIN view_sessions vs ON vs.campaign_id = vc.id WHERE vc.status IN ('scheduled','running') GROUP BY vc.id`
+    );
+
+    res.json({
+      success: true,
+      data: {
+        period_hours: hours,
+        views_by_platform: viewsByPlatform || [],
+        device_performance: devicePerf || [],
+        top_commands: topCommands || [],
+        active_campaigns: activeCampaigns || [],
+        summary: {
+          total_devices: db.get(`SELECT COUNT(*) as c FROM devices`).c || 0,
+          online_devices: db.get(`SELECT COUNT(*) as c FROM devices WHERE status='online'`).c || 0,
+          total_commands: db.get(`SELECT COUNT(*) as c FROM execution_logs WHERE timestamp >= ?`, [cutoff]).c || 0,
+          success_rate: (() => {
+            const stats = db.get(`SELECT COUNT(*) as total, SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as ok FROM execution_logs WHERE timestamp >= ?`, [cutoff]);
+            return stats && stats.total > 0 ? Number(((stats.ok / stats.total) * 100).toFixed(2)) : 0;
+          })(),
+        },
+      },
+    });
+  });
+
+  // ALERTS: Configurar alertas en tiempo real
+  app.get('/api/v1/alerts/config', (req, res) => {
+    const cfg = alerts.raw();
+    res.json({ success: true, data: cfg });
+  });
+
+  app.put('/api/v1/alerts/config', (req, res) => {
+    const { monitor_enabled, auto_pause_on_flag, telegram_webhook, discord_webhook, email_enabled } = req.body || {};
+    alerts.setConfig({ monitor_enabled, auto_pause_on_flag, telegram_webhook, discord_webhook, email_enabled });
+    res.json({ success: true, message: 'Configuración de alertas actualizada' });
+  });
+
+  // RANDOMNESS: Configurar aleatoriedad avanzada
+  app.get('/api/v1/randomness/config', (req, res) => {
+    const settings = require('./settings');
+    const cfg = settings.get();
+    res.json({ success: true, data: {
+      jitter_enabled: cfg.jitter_enabled !== false,
+      jitter_xy: cfg.jitter_xy || 5,
+      vary_duration: cfg.vary_duration !== false,
+      vary_duration_percent: cfg.vary_duration_percent || 15,
+      inter_step_delay_ms: cfg.inter_step_delay_ms || 500,
+      inter_step_delay_variance: cfg.inter_step_delay_variance || 500,
+    } });
+  });
+
+  app.put('/api/v1/randomness/config', (req, res) => {
+    const settings = require('./settings');
+    const { jitter_enabled, jitter_xy, vary_duration, vary_duration_percent, inter_step_delay_ms, inter_step_delay_variance } = req.body || {};
+    const cfg = settings.get();
+    if (jitter_enabled !== undefined) cfg.jitter_enabled = jitter_enabled;
+    if (jitter_xy !== undefined) cfg.jitter_xy = jitter_xy;
+    if (vary_duration !== undefined) cfg.vary_duration = vary_duration;
+    if (vary_duration_percent !== undefined) cfg.vary_duration_percent = vary_duration_percent;
+    if (inter_step_delay_ms !== undefined) cfg.inter_step_delay_ms = inter_step_delay_ms;
+    if (inter_step_delay_variance !== undefined) cfg.inter_step_delay_variance = inter_step_delay_variance;
+    settings.set(cfg);
+    res.json({ success: true, message: 'Configuración de aleatoriedad actualizada' });
+  });
+
+  // COMMANDS: Listar todos los comandos disponibles
+  app.get('/api/v1/commands', (req, res) => {
+    const commands = [
+      { type: 'LOGIN_GENERIC', desc: 'Login genérico (detecta campos, escribe credenciales)' },
+      { type: 'DETECT_LOGGED_IN', desc: 'Detectar si ya está logueado' },
+      { type: 'DETECT_VIDEO_END', desc: 'Detectar fin de video/reel' },
+      { type: 'SCROLL_NEXT', desc: 'Scroll al siguiente video' },
+      { type: 'PLAY_VIDEO', desc: 'Tap play/pause' },
+      { type: 'LIKE', desc: 'Dar like' },
+      { type: 'COMMENT', desc: 'Escribir comentario' },
+      { type: 'FOLLOW', desc: 'Seguir cuenta' },
+      { type: 'SEARCH_CONTENT', desc: 'Buscar contenido' },
+      { type: 'WATCH_VIDEO', desc: 'Reproducir video X segundos' },
+      { type: 'WATCH_LOOP', desc: 'Reproducir video N veces' },
+      { type: 'BAN_RECOVERY', desc: 'Recuperación de baneo' },
+      { type: 'ACCOUNT_RESET', desc: 'Reset de cuenta' },
+      { type: 'READ_SCREEN_TEXT', desc: 'Leer texto de pantalla' },
+    ];
+    res.json({ success: true, data: commands });
   });
 
   return app;

@@ -241,6 +241,95 @@ CREATE TABLE IF NOT EXISTS view_campaigns (
   updated_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS proxy_orch_lanes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  lane_id TEXT UNIQUE NOT NULL,
+  purpose TEXT NOT NULL,
+  proxy_orch_ip TEXT NOT NULL,
+  proxy_orch_port INTEGER NOT NULL,
+  provider_class TEXT NOT NULL,
+  auto_fallback INTEGER DEFAULT 0,
+  residential_quota_gb INTEGER,
+  residential_warn_pct INTEGER DEFAULT 70,
+  residential_block_pct INTEGER DEFAULT 85,
+  residential_hard_pct INTEGER DEFAULT 95,
+  residential_max_pct INTEGER DEFAULT 100,
+  active INTEGER DEFAULT 1,
+  created_at TEXT,
+  updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS device_lane_assignments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  device_serial TEXT NOT NULL,
+  lane_id TEXT NOT NULL,
+  assigned_at TEXT,
+  assigned_by TEXT NOT NULL,
+  approved_hash TEXT NOT NULL,
+  approved_at TEXT,
+  approved_by TEXT,
+  approved_ttl INTEGER,
+  assigned_source TEXT,
+  last_success TEXT,
+  last_failure TEXT,
+  failure_count INTEGER DEFAULT 0,
+  bytes_sent INTEGER DEFAULT 0,
+  bytes_received INTEGER DEFAULT 0,
+  created_at TEXT,
+  updated_at TEXT,
+  UNIQUE(lane_id, device_serial)
+);
+
+CREATE TABLE IF NOT EXISTS health_checks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  device_serial TEXT NOT NULL,
+  check_level INTEGER NOT NULL,
+  check_type TEXT NOT NULL,
+  target TEXT NOT NULL,
+  status TEXT NOT NULL,
+  latency_ms REAL,
+  loss_pct REAL,
+  exit_identity TEXT,
+  details TEXT,
+  timestamp TEXT,
+  created_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS audit_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  device_serial TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  state_before TEXT,
+  state_after TEXT,
+  desired_hash TEXT NOT NULL,
+  actual_hash TEXT,
+  approval_id TEXT,
+  approved_by TEXT NOT NULL,
+  approved_at TEXT,
+  applied_at TEXT,
+  rollback_hash TEXT,
+  rollback_result TEXT,
+  timestamp TEXT
+);
+
+CREATE TABLE IF NOT EXISTS device_registry (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  evidence_id TEXT UNIQUE NOT NULL,
+  device_serial TEXT NOT NULL,
+  approved_label TEXT NOT NULL,
+  binding_redacted TEXT NOT NULL,
+  vlan INTEGER DEFAULT 60,
+  group_id TEXT,
+  lane_id TEXT,
+  dns_policy TEXT DEFAULT 'strict',
+  state TEXT DEFAULT 'registered',
+  last_success TEXT,
+  quarantine_reason TEXT,
+  quarantine_at TEXT,
+  created_at TEXT,
+  updated_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS view_sessions (
   id TEXT PRIMARY KEY,
   campaign_id TEXT,

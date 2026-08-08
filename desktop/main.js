@@ -53,7 +53,7 @@ function loadApiToken() {
 function createWindow() {
   win = new BrowserWindow({
     width: 1320, height: 860,
-    title: 'MCP Control Bsolutions V1',
+    title: 'MCP Control Bsolutions V2',
     backgroundColor: '#0f1117',
     webPreferences: { contextIsolation: true, nodeIntegration: false },
   });
@@ -191,7 +191,7 @@ app.whenReady().then(async () => {
     //    frameMaxWidth/frameQuality = streaming ligero del muro (JPEG reescalado).
     adb.start({
       backendUrl: backendApi, backendToken: apiToken,
-      frameMaxWidth: 480, frameQuality: 60,      // visor enfocado (alta calidad)
+      frameMaxWidth: 0, frameQuality: 55,        // visor enfocado: resolución NATIVA (para que el toque caiga donde se hace clic) + JPEG
       thumbMaxWidth: 240, thumbQuality: 40, thumbTtlMs: 1500,  // miniaturas del muro (ligeras, escala 40+)
     });
     router.setAdbTransport(adb);

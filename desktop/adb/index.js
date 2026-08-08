@@ -12,6 +12,15 @@ const HJ = (x, y) => settings ? settings.jitterXY(x, y) : { x, y };
 const HD = (ms) => settings ? settings.varyDuration(ms) : ms;
 
 let CONFIG = { backendUrl: 'http://127.0.0.1:8733/api/v1', backendToken: '', adbPath: null };
+
+// Mapeo de plataforma a package name para LOGIN_GENERIC, BAN_RECOVERY, etc.
+const PLATFORM_PACKAGES = {
+  tiktok: 'com.zhiliaoapp.musically',
+  youtube: 'com.google.android.youtube',
+  instagram: 'com.instagram.android',
+  twitter: 'com.twitter.android',
+  general: null,
+};
 const live = new Map();       // adbSerial -> { serial, model, release, size:{w,h} }
 let pollTimer = null;
 let needsInitialReconciliation = true;
@@ -512,6 +521,243 @@ async function execute(serial, command, params) {
         await adb(['-s', serial, 'pull', String(p.remote ?? ''), String(p.local ?? '')], { timeout: 180000 });
         return { success: true, message: `Descargado ${p.remote} → ${p.local}` };
 
+
+
+      // ---------- Login genérico (detecta campos email/password, escribe, pulsa login) ----------
+      case 'LOGIN_GENERIC': {
+        const platform = p.platform || 'general';
+        const email = p.email || '';
+        const password = p.password || '';
+        const totp_secret = p.totp_secret || '';
+        const pkg = PLATFORM_PACKAGES[platform] || p.package_name;
+        if (pkg) {
+          await shell(serial, ['monkey', '-p', pkg, '-c', 'android.intent.category.LAUNCHER', '1']);
+          await sleep(3000);
+        }
+        const ui = await dumpUi(serial);
+        const alreadyLogged = /home|feed|explorar|discover|para ti|for you|Inicio|Explorar/i.test(ui);
+        if (alreadyLogged) return { success: true, message: 'Ya logueado en la app', data: { already_logged: true } };
+        const loginBtn = findBoundsBy(xml = ui, 'text', 'Iniciar sesión') || findBoundsBy(xml = ui, 'text', 'Log in') || findBoundsBy(xml = ui, 'text', 'Sign in') || findBoundsBy(xml = ui, 'text', 'Ingresar') || findBoundsBy(xml = ui, 'text', 'Entrar');
+        if (loginBtn) { await shell(serial, ['input', 'tap', String(loginBtn.x), String(loginBtn.y)]); await sleep(2000); }
+        if (email) {
+          const emailField = findBoundsBy(xml = ui, 'resource-id', 'email') || findBoundsBy(xml = ui, 'resource-id', 'edit_text') || findBoundsBy(xml = ui, 'text', 'Email') || findBoundsBy(xml = ui, 'text', 'Correo');
+          if (emailField) {
+            await shell(serial, ['input', 'tap', String(emailField.x), String(emailField.y)]);
+            await sleep(500);
+            await shell(serial, ['input', 'text', email.replace(/ /g, '%s')]);
+            await sleep(1500);
+            await shell(serial, ['input', 'keyevent', '66']);
+            await sleep(2000);
+          }
+        }
+        if (password) {
+          const passField = findBoundsBy(xml = ui, 'resource-id', 'password') || findBoundsBy(xml = ui, 'resource-id', 'edit_text') || findBoundsBy(xml = ui, 'text', 'Contraseña') || findBoundsBy(xml = ui, 'text', 'Password');
+          if (passField) {
+            await shell(serial, ['input', 'tap', String(passField.x), String(passField.y)]);
+            await sleep(500);
+            await shell(serial, ['input', 'text', password.replace(/ /g, '%s')]);
+            await sleep(1500);
+          }
+        }
+        const nextBtn = findBoundsBy(xml = ui, 'text', 'Siguiente') || findBoundsBy(xml = ui, 'text', 'Next') || findBoundsBy(xml = ui, 'text', 'Continuar') || findBoundsBy(xml = ui, 'text', 'Sign in') || findBoundsBy(xml = ui, 'text', 'Log in');
+        if (nextBtn) { await shell(serial, ['input', 'tap', String(nextBtn.x), String(nextBtn.y)]); await sleep(3000); }
+        if (totp_secret) {
+          const totp = require('../server/accounts').totp(require('../server/accounts')._dec(totp_secret));
+          if (totp) {
+            const codeField = findBoundsBy(xml = ui, 'resource-id', 'code') || findBoundsBy(xml = ui, 'text', 'Código');
+            if (codeField) {
+              await shell(serial, ['input', 'tap', String(codeField.x), String(codeField.y)]);
+              await sleep(500);
+              for (const ch of totp) { await shell(serial, ['input', 'text', ch]); await sleep(150); }
+              await sleep(2000);
+              const verifyBtn = findBoundsBy(xml = ui, 'text', 'Verify') || findBoundsBy(xml = ui, 'text', 'Verificar');
+              if (verifyBtn) { await shell(serial, ['input', 'tap', String(verifyBtn.x), String(verifyBtn.y)]); await sleep(3000); }
+            }
+          }
+        }
+        const finalUi = await dumpUi(serial);
+        const success = /home|feed|explorar|discover|para ti|for you|Inicio|Explorar/i.test(finalUi);
+        return { success, message: success ? 'Login exitoso' : 'Login fallido', data: { success, already_logged: alreadyLogged, platform, email } };
+      }
+
+      // ---------- Detectar si ya está logueado ----------
+      case 'DETECT_LOGGED_IN': {
+        const ui = await dumpUi(serial);
+        const logged = /home|feed|explorar|discover|para ti|for you|Inicio|Explorar/i.test(ui);
+        const needsLogin = /log ?in|inicia sesi[oó]n|sign ?in|registr|crear cuenta/i.test(ui) && !logged;
+        return { success: true, data: { logged_in: logged, needs_login: needsLogin }, message: logged ? 'Ya logueado' : (needsLogin ? 'Necesita login' : 'Estado desconocido') };
+      }
+
+      // ---------- Detectar fin de video/reel ----------
+      case 'DETECT_VIDEO_END': {
+        const ui = await dumpUi(serial);
+        const endPatterns = [/reproducir de nuevo|play again|tap to restart|ver siguiente|next video|siguiente video|ver m[aá]s|watch more|play next|next clip|siguiente clip|otro video|\\bnext\\b.*\\bvideo/i, /watch again|replay|ver de nuevo|play again|restart video/i];
+        let matched = null;
+        for (const re of endPatterns) { const m = ui.match(re); if (m) { matched = m[0]; break; } }
+        const playBtn = findBoundsBy(xml = ui, 'text', '▶') || findBoundsBy(xml = ui, 'text', 'Play');
+        return { success: true, data: { video_ended: !!matched, video_paused: !!playBtn, matched_text: matched }, message: matched ? `Fin detectado: "${matched}"` : (playBtn ? 'Video pausado' : 'Video activo') };
+      }
+
+      // ---------- Scroll al siguiente video ----------
+      case 'SCROLL_NEXT': {
+        const s = await screenSize(serial);
+        const jitter = HJ(s.w / 2, s.h * 0.3);
+        await shell(serial, ['input', 'swipe', String(jitter.x), String(s.h * 0.8), String(jitter.x), String(s.h * 0.2), String(HD(400))]);
+        await sleep(2000);
+        return { success: true, message: 'Scroll al siguiente video' };
+      }
+
+      // ---------- Reproducir video (tap play) ----------
+      case 'PLAY_VIDEO': {
+        const s = await screenSize(serial);
+        await shell(serial, ['input', 'tap', String(Math.round(s.w / 2)), String(Math.round(s.h / 2))]);
+        await sleep(2000);
+        return { success: true, message: 'Tap play/pause' };
+      }
+
+      // ---------- Like ----------
+      case 'LIKE': {
+        const s = await screenSize(serial);
+        await shell(serial, ['input', 'tap', String(Math.round(s.w * 0.75)), String(Math.round(s.h * 0.65))]);
+        await sleep(500);
+        return { success: true, message: 'Like dado' };
+      }
+
+      // ---------- Comentar ----------
+      case 'COMMENT': {
+        const comment = String(p.text || '');
+        if (!comment) return { success: false, message: 'Falta texto del comentario' };
+        const xml = await dumpUi(serial);
+        const commentField = findBoundsBy(xml, 'resource-id', 'comment') || findBoundsBy(xml, 'resource-id', 'caption') || findBoundsBy(xml, 'resource-id', 'edit_text') || findBoundsBy(xml, 'text', 'A[dñ]dir comentario') || findBoundsBy(xml, 'text', 'Add comment');
+        if (commentField) {
+          await shell(serial, ['input', 'tap', String(commentField.x), String(commentField.y)]);
+          await sleep(500);
+          await shell(serial, ['input', 'text', comment.replace(/ /g, '%s')]);
+          await sleep(1500);
+          const sendBtn = findBoundsBy(xml, 'text', 'Enviar') || findBoundsBy(xml, 'text', 'Send') || findBoundsBy(xml, 'text', 'Publicar');
+          if (sendBtn) { await shell(serial, ['input', 'tap', String(sendBtn.x), String(sendBtn.y)]); await sleep(2000); }
+          return { success: true, message: `Comentario: "${comment}"` };
+        }
+        return { success: false, message: 'Campo de comentario no encontrado' };
+      }
+
+      // ---------- Seguir ----------
+      case 'FOLLOW': {
+        const s = await screenSize(serial);
+        await shell(serial, ['input', 'tap', String(Math.round(s.w * 0.85)), String(Math.round(s.h * 0.15))]);
+        await sleep(1000);
+        return { success: true, message: 'Seguir pulsado' };
+      }
+
+      // ---------- Buscar contenido ----------
+      case 'SEARCH_CONTENT': {
+        const query = String(p.query || p.search || '');
+        if (!query) return { success: false, message: 'Falta query' };
+        const xml = await dumpUi(serial);
+        const searchIcon = findBoundsBy(xml, 'resource-id', 'search') || findBoundsBy(xml, 'resource-id', 'search_button') || findBoundsBy(xml, 'text', 'Buscar') || findBoundsBy(xml, 'text', 'Search');
+        if (searchIcon) {
+          await shell(serial, ['input', 'tap', String(searchIcon.x), String(searchIcon.y)]);
+          await sleep(1500);
+          await shell(serial, ['input', 'text', query.replace(/ /g, '%s')]);
+          await sleep(1500);
+          await shell(serial, ['input', 'keyevent', '66']);
+          await sleep(3000);
+          return { success: true, message: `Búsqueda: "${query}"` };
+        }
+        return { success: false, message: 'Icono de búsqueda no encontrado' };
+      }
+
+      // ---------- Compartir ----------
+      case 'SHARE': {
+        const s = await screenSize(serial);
+        await shell(serial, ['input', 'tap', String(Math.round(s.w * 0.8)), String(Math.round(s.h * 0.6))]);
+        await sleep(1500);
+        return { success: true, message: 'Compartir pulsado' };
+      }
+
+      // ---------- Guardar ----------
+      case 'SAVE': {
+        const s = await screenSize(serial);
+        await shell(serial, ['input', 'tap', String(Math.round(s.w * 0.75)), String(Math.round(s.h * 0.65))]);
+        await sleep(1000);
+        return { success: true, message: 'Contenido guardado' };
+      }
+
+      // ---------- Watch video (duración) ----------
+      case 'WATCH_VIDEO': {
+        const duration = p.duration_seconds || 30;
+        await sleep(duration * 1000);
+        return { success: true, message: `Vista de ${duration}s completada` };
+      }
+
+      // ---------- Watch loop (N vistas) ----------
+      case 'WATCH_LOOP': {
+        const count = p.count || 1;
+        const duration = p.duration_seconds || 30;
+        const scrollBetween = p.scroll_between !== false;
+        const likeChance = p.like_chance || 0;
+        const commentText = p.comment_text || '';
+        let successCount = 0;
+        for (let i = 0; i < count; i++) {
+          await sleep(duration * 1000);
+          successCount++;
+          if (likeChance > 0 && Math.random() < likeChance) { await execute(serial, 'LIKE', {}); await sleep(500); }
+          if (commentText && i === count - 1) { await execute(serial, 'COMMENT', { text: commentText }); await sleep(500); }
+          if (scrollBetween && i < count - 1) { await execute(serial, 'SCROLL_NEXT', {}); await sleep(2000); }
+        }
+        return { success: true, message: `Loop: ${successCount}/${count} vistas`, data: { completed: successCount, total: count } };
+      }
+
+      // ---------- Ban recovery ----------
+      case 'BAN_RECOVERY': {
+        const platform = p.platform || 'general';
+        const changeProxy = p.change_proxy !== false;
+        const clearData = p.clear_data !== false;
+        const doLogin = p.login !== false;
+        const email = p.email || '';
+        const password = p.password || '';
+        const totp_secret = p.totp_secret || '';
+        await shell(serial, ['input', 'keyevent', '3']); // Home
+        await sleep(2000);
+        if (changeProxy && p.proxy_host && p.proxy_port) {
+          await execute(serial, 'SET_PROXY', { host: p.proxy_host, port: p.proxy_port });
+          await sleep(3000);
+        }
+        if (clearData) {
+          const pkg = PLATFORM_PACKAGES[platform] || p.package_name;
+          if (pkg) { await shell(serial, ['pm', 'clear', pkg]); await sleep(3000); }
+        }
+        if (doLogin) {
+          await execute(serial, 'LOGIN_GENERIC', { platform, email, password, totp_secret, package_name: PLATFORM_PACKAGES[platform] || p.package_name });
+        }
+        return { success: true, message: 'Recuperación de baneo completada' };
+      }
+
+      // ---------- Account reset ----------
+      case 'ACCOUNT_RESET': {
+        const platform = p.platform || 'general';
+        const deviceId = p.device_id;
+        const accounts = require('../server/accounts');
+        const db = require('../server/db');
+        const sql = deviceId
+          ? "SELECT * FROM accounts WHERE status NOT IN ('banned') AND (device_id IS NULL OR device_id=?) AND (cooldown_until IS NULL OR cooldown_until < ?) AND platform=? ORDER BY last_used_at IS NULL DESC, last_used_at ASC LIMIT 1"
+          : "SELECT * FROM accounts WHERE status NOT IN ('banned') AND (device_id IS NULL OR device_id=?) AND (cooldown_until IS NULL OR cooldown_until < ?) AND platform=? ORDER BY last_used_at IS NULL DESC, last_used_at ASC LIMIT 1";
+        const params = deviceId ? [deviceId, new Date().toISOString(), platform] : [deviceId, new Date().toISOString(), platform];
+        const next = db.all(sql, params)[0];
+        if (!next) return { success: false, message: 'No hay cuentas disponibles', data: { remaining: 0 } };
+        accounts.assign(next.id, deviceId);
+        return { success: true, message: `Cuenta reseteada: ${next.email}`, data: { account_id: next.id, email: next.email, platform } };
+      }
+
+      // ---------- Capturar texto de pantalla ----------
+      case 'READ_SCREEN_TEXT': {
+        const xml = await dumpUi(serial);
+        const texts = [];
+        const re = /(?:text|content-desc)="([^"]*)"/g; let m;
+        while ((m = re.exec(xml))) { const s = m[1].trim(); if (s) texts.push(s); }
+        const uniq = [...new Set(texts)];
+        return { success: true, message: `Texto leído (${uniq.length} elementos)`, data: { text: uniq.join(' | '), items: uniq } };
+      }
       case 'SCREEN_RECORD': {
         const secs = Math.min(p.duration_seconds ?? 10, 180);
         const remote = '/sdcard/mcp_rec.mp4';

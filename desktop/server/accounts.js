@@ -115,6 +115,49 @@ function assign(id, deviceId) {
   DB.run("UPDATE accounts SET device_id=?, active=1, status=CASE WHEN status='unused' THEN 'active' ELSE status END, updated_at=? WHERE id=?", [deviceId, now(), id]);
   return publicView(DB.get('SELECT * FROM accounts WHERE id=?', [id]));
 }
+// Reparto 1:1 en orden: la entrada i va al dispositivo i. `deviceIds` llega en el
+// orden en que el operador ve la matriz, para que "teléfono 3" sea el que él ve
+// como 3. Reutiliza la cuenta si ese correo ya existe en la misma plataforma, en
+// vez de duplicarla en cada reparto.
+function distribute({ entries, deviceIds, platform }) {
+  const list = Array.isArray(entries) ? entries : [];
+  const devs = Array.isArray(deviceIds) ? deviceIds : [];
+  const plat = platform || null;
+  const n = Math.min(list.length, devs.length);
+  const assignments = [];
+
+  for (let i = 0; i < n; i++) {
+    const e = list[i] || {};
+    const deviceId = devs[i];
+    const ident = e.email || e.username;
+    if (!ident) continue;
+
+    let row = DB.get(
+      "SELECT * FROM accounts WHERE (email=? OR username=?) AND COALESCE(platform,'')=COALESCE(?,'') LIMIT 1",
+      [ident, ident, plat]
+    );
+
+    let accId;
+    if (row) {
+      accId = row.id;
+      // Solo pisa la contraseña si en este reparto se ha aportado una nueva.
+      if (e.password) update(accId, { password: e.password });
+    } else {
+      accId = create({ platform: plat, username: e.username || ident, email: e.email || ident, password: e.password, totp_secret: e.totp_secret }).id;
+    }
+
+    assign(accId, deviceId);
+    assignments.push({ account_id: accId, device_id: deviceId, email: e.email || ident, reused: !!row });
+  }
+
+  return {
+    assigned: assignments.length,
+    assignments,
+    leftover_entries: list.slice(n).map(e => e.email || e.username).filter(Boolean),
+    leftover_devices: devs.slice(n),
+  };
+}
+
 function unassign(id) {
   DB.run("UPDATE accounts SET device_id=NULL, active=0, updated_at=? WHERE id=?", [now(), id]);
   return publicView(DB.get('SELECT * FROM accounts WHERE id=?', [id]));
@@ -171,4 +214,4 @@ function resolveVars(device, step) {
   return out;
 }
 
-module.exports = { init, list, create, update, remove, importBulk, assign, unassign, setStatus, activeFor, rotate, resolveVars, totp, publicView, _enc: enc, _dec: dec };
+module.exports = { init, list, create, update, remove, importBulk, assign, unassign, distribute, setStatus, activeFor, rotate, resolveVars, totp, publicView, _enc: enc, _dec: dec };

@@ -18,7 +18,10 @@ function routerDispatch(serial, command, params) {
   return new Promise((resolve) => {
     const body = JSON.stringify({ serial_number: serial, command, params: params || {} });
     const req = http.request({ host: '127.0.0.1', port: ROUTER_PORT, path: '/command/dispatch', method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }, timeout: 130000 },
+      // Instalar un APK grande (TikTok ~300 MB) por WiFi supera de largo los 130s
+      // del resto de comandos: con el timeout corto el router abortaba y reportaba
+      // fallo mientras adb seguía instalando por detrás.
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }, timeout: /^INSTALL/.test(command) ? 660000 : 130000 },
       (res) => { let d = ''; res.on('data', c => d += c); res.on('end', () => { try { resolve(JSON.parse(d)); } catch { resolve({ success: false, message: 'respuesta inválida del router' }); } }); });
     req.on('error', e => resolve({ success: false, message: `router: ${e.message}` }));
     req.on('timeout', () => { req.destroy(); resolve({ success: false, message: 'timeout del router' }); });

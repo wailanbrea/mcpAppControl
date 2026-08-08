@@ -6,6 +6,7 @@
 const { execFile, spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const net = require('net');
 const maintenance = require('./maintenance');
 let settings = null; try { settings = require('../server/settings'); } catch (_) {}
 const HJ = (x, y) => settings ? settings.jitterXY(x, y) : { x, y };
@@ -22,6 +23,7 @@ const PLATFORM_PACKAGES = {
   general: null,
 };
 const live = new Map();       // adbSerial -> { serial, model, release, size:{w,h} }
+const knownTcp = new Map();   // dirección WiFi (ip:puerto) -> ts del último intento de reconexión
 let pollTimer = null;
 let needsInitialReconciliation = true;
 
@@ -135,6 +137,7 @@ async function registerDevice(serial) {
   reapplyProxy(serial);
   applyStability(serial);   // estabilidad inmediata al conectar
   applyTimeConfig(serial);  // hora/fecha estable al conectar
+  if (serial.includes(':') && !knownTcp.has(serial)) knownTcp.set(serial, 0); // vigilar para reconexión
 }
 
 // Aplica al instante la base de estabilidad: mantener el teléfono despierto mientras
@@ -176,13 +179,20 @@ async function poll() {
     const persisted = response?.data?.data || (Array.isArray(response?.data) ? response.data : null);
     if (Array.isArray(persisted)) {
       for (const device of persisted) {
-        if (device.transport === 'adb' && !serials.includes(device.adb_serial || device.serial_number)) {
+        const addr = device.adb_serial || device.serial_number;
+        if (device.transport === 'adb' && !serials.includes(addr)) {
           await backendPost('/devices/heartbeat', {
             serial_number: device.serial_number,
             status: 'offline',
           });
         }
+        // `knownTcp` vive en RAM: al reiniciar la app se perdería y los teléfonos
+        // WiFi caídos no se reintentarían nunca más. La tabla `devices` ya guarda
+        // la dirección (el serial de un dispositivo TCP es "ip:puerto"), así que
+        // la usamos como origen de verdad para repoblar la lista de vigilancia.
+        if (String(addr || '').includes(':')) knownTcp.set(addr, 0);
       }
+      if (knownTcp.size) console.log(`[adb] ${knownTcp.size} direcciones WiFi recuperadas de la BD para reconexión automática`);
       needsInitialReconciliation = false;
     }
   }
@@ -195,6 +205,132 @@ async function poll() {
       try { const router = require('../router'); router.broadcast('device_offline', { serial_number: s }); } catch (_) {}
     }
   }
+  // reconexión automática de dispositivos WiFi/TCP caídos
+  await tryReconnectTcp(serials);
+}
+
+// Reintenta `adb connect` para las direcciones WiFi conocidas que ya no aparecen
+// conectadas (throttle de 12s por dirección para no saturar).
+async function tryReconnectTcp(currentSerials) {
+  const nowT = Date.now();
+  for (const [addr, lastTs] of knownTcp) {
+    if (currentSerials.includes(addr)) { knownTcp.set(addr, 0); continue; }
+    if (nowT - lastTs < 12000) continue;
+    knownTcp.set(addr, nowT);
+    try {
+      const out = await adb(['connect', addr], { timeout: 8000, lowPriority: true });
+      if (/connected/i.test(out || '')) console.log(`[adb] reconectado WiFi ${addr}`);
+    } catch (_) {}
+  }
+}
+
+// ---------- instalación de APK ----------
+// Formatos de bundle que en realidad son un ZIP con el APK base + sus splits.
+const BUNDLE_EXT = /\.(xapk|apks|apkm)$/i;
+
+// Traduce los INSTALL_FAILED_* de adb a algo accionable. El texto crudo de adb
+// no le dice nada a quien opera la granja.
+function explainInstallError(raw) {
+  const t = String(raw || '');
+  const table = [
+    [/INSTALL_FAILED_ALREADY_EXISTS/i, 'ya está instalada (usa Desinstalar app primero)'],
+    [/INSTALL_FAILED_VERSION_DOWNGRADE|INSTALL_FAILED_UPDATE_INCOMPATIBLE/i, 'la versión instalada es más nueva o está firmada por otro autor; desinstálala antes'],
+    [/INSTALL_FAILED_INSUFFICIENT_STORAGE/i, 'no hay espacio suficiente en el teléfono'],
+    [/INSTALL_FAILED_MISSING_SPLIT/i, 'faltan los splits del bundle; instala el .xapk/.apks completo, no solo el APK base'],
+    [/INSTALL_FAILED_NO_MATCHING_ABIS/i, 'el APK no es compatible con la arquitectura del teléfono'],
+    [/INSTALL_FAILED_OLDER_SDK|INSTALL_FAILED_DEPRECATED_SDK_VERSION/i, 'el APK exige una versión de Android superior a la del teléfono'],
+    [/INSTALL_FAILED_USER_RESTRICTED/i, 'el teléfono bloquea la instalación por USB; activa "Instalar vía USB" en Opciones de desarrollador'],
+    [/INSTALL_FAILED_INVALID_APK|Invalid APK file/i, 'el archivo no es un APK válido o está corrupto'],
+    [/device .* not found|device offline/i, 'el dispositivo no está accesible por ADB'],
+    [/INSTALL_FAILED_VERIFICATION_FAILURE|verification/i, 'Play Protect bloqueó la instalación; desactiva la verificación de apps'],
+  ];
+  for (const [re, msg] of table) if (re.test(t)) return msg;
+  const line = t.split(/\r?\n/).map(s => s.trim()).filter(Boolean).pop() || 'error desconocido';
+  return line.slice(0, 160);
+}
+
+// Lector ZIP mínimo (solo lo que necesitamos: localizar los .apk de un bundle y
+// extraerlos). Recorre el directorio central; admite entradas guardadas (0) y
+// deflate (8), que es todo lo que usan los .xapk/.apks reales.
+function extractApksFromZip(zipFile, outDir) {
+  const zlib = require('zlib');
+  const buf = fs.readFileSync(zipFile);
+  // Fin del directorio central (EOCD): firma 0x06054b50, buscada desde el final
+  // porque puede llevar comentario detrás.
+  let eocd = -1;
+  for (let i = buf.length - 22; i >= 0 && i >= buf.length - 22 - 65535; i--) {
+    if (buf.readUInt32LE(i) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error('El archivo no es un ZIP válido (no se encontró el índice)');
+
+  const count = buf.readUInt16LE(eocd + 10);
+  let ptr = buf.readUInt32LE(eocd + 16);
+  const written = [];
+
+  for (let n = 0; n < count; n++) {
+    if (buf.readUInt32LE(ptr) !== 0x02014b50) break; // fin del directorio central
+    const method = buf.readUInt16LE(ptr + 10);
+    const compSize = buf.readUInt32LE(ptr + 20);
+    const nameLen = buf.readUInt16LE(ptr + 28);
+    const extraLen = buf.readUInt16LE(ptr + 30);
+    const commentLen = buf.readUInt16LE(ptr + 32);
+    const localOff = buf.readUInt32LE(ptr + 42);
+    const name = buf.toString('utf8', ptr + 46, ptr + 46 + nameLen);
+    ptr += 46 + nameLen + extraLen + commentLen;
+
+    // Solo APKs de la raíz del bundle; nada de rutas con ../ ni subcarpetas
+    // (obb/, icon.png…), que no se instalan y evitan escrituras fuera de outDir.
+    if (!/^[^/\\]+\.apk$/i.test(name)) continue;
+
+    // La cabecera local repite los tamaños de nombre/extra, que pueden diferir
+    // de los del directorio central: hay que leerlos de ahí.
+    const lnameLen = buf.readUInt16LE(localOff + 26);
+    const lextraLen = buf.readUInt16LE(localOff + 28);
+    const start = localOff + 30 + lnameLen + lextraLen;
+    const raw = buf.subarray(start, start + compSize);
+    const data = method === 0 ? raw : zlib.inflateRawSync(raw);
+
+    const dest = path.join(outDir, path.basename(name));
+    fs.writeFileSync(dest, data);
+    written.push(dest);
+  }
+  if (!written.length) throw new Error('El bundle no contiene ningún .apk en su raíz');
+  return written;
+}
+
+// Normaliza lo que teclea el usuario y devuelve la lista de APK a instalar.
+// Acepta: un .apk, una carpeta con base+splits, o un bundle .xapk/.apks/.apkm.
+function resolveApkTarget(input) {
+  // "Copiar como ruta de acceso" de Windows envuelve la ruta en comillas: si no
+  // se quitan, adb busca un fichero cuyo nombre empieza literalmente por comilla.
+  let apkPath = String(input ?? '').trim().replace(/^["']+|["']+$/g, '').trim();
+  if (!apkPath) throw new Error('No indicaste ninguna ruta de APK');
+  if (!path.isAbsolute(apkPath)) throw new Error(`La ruta debe ser absoluta: "${apkPath}"`);
+  if (!fs.existsSync(apkPath)) throw new Error(`No existe el archivo: "${apkPath}"`);
+
+  const stat = fs.statSync(apkPath);
+
+  if (stat.isDirectory()) {
+    const files = fs.readdirSync(apkPath).filter(f => /\.apk$/i.test(f)).map(f => path.join(apkPath, f));
+    if (!files.length) throw new Error(`La carpeta no contiene ningún .apk: "${apkPath}"`);
+    return { files, label: `${path.basename(apkPath)} (${files.length} APK)`, cleanup: null };
+  }
+
+  if (BUNDLE_EXT.test(apkPath)) {
+    const tmp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'mcp-apk-'));
+    let files;
+    try { files = extractApksFromZip(apkPath, tmp); }
+    catch (e) { fs.rmSync(tmp, { recursive: true, force: true }); throw new Error(`${path.basename(apkPath)}: ${e.message}`); }
+    return {
+      files,
+      label: `${path.basename(apkPath)} (${files.length} APK)`,
+      // Solo borra el temporal que acabamos de crear, nunca la ruta del usuario.
+      cleanup: () => { try { fs.rmSync(tmp, { recursive: true, force: true }); } catch (_) {} },
+    };
+  }
+
+  if (!/\.apk$/i.test(apkPath)) throw new Error(`Formato no soportado: "${path.basename(apkPath)}". Usa .apk, .xapk, .apks, .apkm o una carpeta con los APK.`);
+  return { files: [apkPath], label: path.basename(apkPath), cleanup: null };
 }
 
 // ---------- traductor de comandos ----------
@@ -232,13 +368,18 @@ async function execute(serial, command, params) {
   const p = params || {};
   try {
     switch (command) {
-      case 'OPEN_APP':
-        await shell(serial, ['monkey', '-p', p.package_name, '-c', 'android.intent.category.LAUNCHER', '1']);
+      // Acepta package_name y packageName: las rutinas usan una forma y el panel
+      // la otra. Antes, quien pasara solo packageName mandaba `undefined` a monkey.
+      case 'OPEN_APP': {
+        const pkg = String(p.packageName || p.package_name || '').trim();
+        if (!pkg) return { success: false, message: 'Falta el nombre de paquete' };
+        await shell(serial, ['monkey', '-p', pkg, '-c', 'android.intent.category.LAUNCHER', '1']);
         await sleep(2000);
-        return { success: true, message: `App abierta: ${p.package_name}` };
+        return { success: true, message: `App abierta: ${pkg}` };
+      }
 
       case 'GOTO_URL':
-        await shell(serial, ['am', 'start', '-a', 'android.intent.action.VIEW', '-d', p.url]);
+        await shell(serial, ['am', 'start', '-a', 'android.intent.action.VIEW', '-d', String(p.url ?? '')]);
         await sleep(2000);
         return { success: true, message: `URL abierta: ${p.url}` };
 
@@ -434,14 +575,8 @@ async function execute(serial, command, params) {
         await shell(serial, ['input', 'text', String(p.value ?? '').replace(/ /g, '%s')]);
         return { success: true, message: 'Texto escrito' };
 
-      case 'OPEN_APP':
-        await shell(serial, ['monkey', '-p', String(p.packageName || p.package_name || 'com.spotify.music'), '-c', 'android.intent.category.LAUNCHER', '1']);
-        return { success: true, message: `App ${p.packageName || p.package_name} abierta` };
-
-      case 'GOTO_URL':
-        await shell(serial, ['am', 'start', '-a', 'android.intent.action.VIEW', '-d', String(p.url ?? '')]);
-        await sleep(1200);
-        return { success: true, message: `URL/URI ${p.url} abierta` };
+      // OPEN_APP y GOTO_URL se atienden más arriba; este bloque duplicado era
+      // código muerto (un switch solo entra en el primer case que coincide).
 
       case 'START_ACTIVITY':
         await shell(serial, ['am', 'start', '-n', String(p.component ?? '')]);
@@ -456,14 +591,115 @@ async function execute(serial, command, params) {
         await shell(serial, ['pm', 'clear', String(p.package_name ?? '')]);
         return { success: true, message: `Datos borrados ${p.package_name}` };
 
-      case 'UNINSTALL_APP':
-        await shell(serial, ['pm', 'uninstall', String(p.package_name ?? '')]);
-        return { success: true, message: `Desinstalada ${p.package_name}` };
+      case 'UNINSTALL_APP': {
+        const pkg = String(p.package_name ?? '').trim();
+        if (!pkg) return { success: false, message: 'Falta package_name' };
+        // `pm uninstall` sale con código 0 aunque falle: escribe "Failure [...]"
+        // en stdout. Sin mirar la salida, desinstalar una app ausente se
+        // reportaba como éxito.
+        const out = String(await shell(serial, ['pm', 'uninstall', pkg]).catch(e => e.message || ''));
+        if (/Success/i.test(out)) return { success: true, message: `Desinstalada ${pkg}` };
+        if (/DELETE_FAILED_INTERNAL_ERROR|Unknown package|not installed/i.test(out)) {
+          return { success: false, message: `${pkg} no estaba instalada en este dispositivo` };
+        }
+        if (/DELETE_FAILED_DEVICE_POLICY_MANAGER/i.test(out)) {
+          return { success: false, message: `${pkg} está protegida por política del dispositivo` };
+        }
+        return { success: false, message: `No se pudo desinstalar ${pkg}: ${out.trim().split(/\r?\n/).pop() || 'motivo desconocido'}` };
+      }
 
       case 'INSTALL_APK': {
-        const out = await adb(['-s', serial, 'install', '-r', String(p.apk_path ?? '')], { timeout: 180000 });
-        const ok = /Success/i.test(out || '');
-        return { success: ok, message: ok ? 'APK instalado' : `Fallo al instalar: ${String(out).slice(0, 120)}` };
+        let target;
+        try { target = resolveApkTarget(p.apk_path); }
+        catch (e) { return { success: false, message: e.message }; }
+
+        // Los bundles (varios APK: base + splits) exigen `install-multiple`;
+        // `install` a secas falla con INSTALL_FAILED_MISSING_SPLIT.
+        const args = target.files.length > 1
+          ? ['-s', serial, 'install-multiple', '-r', ...(p.downgrade ? ['-d'] : []), ...target.files]
+          : ['-s', serial, 'install', '-r', ...(p.downgrade ? ['-d'] : []), target.files[0]];
+
+        let out = '';
+        try {
+          out = await adb(args, { timeout: 600000 });
+        } catch (e) {
+          // adb escribe los INSTALL_FAILED_* en stderr y sale con código != 0,
+          // así que execFile rechaza y el motivo real viaja dentro del error.
+          out = `${e.stderr || ''}${e.message || ''}`;
+        } finally {
+          if (target.cleanup) target.cleanup();
+        }
+
+        const ok = /Success/i.test(out);
+        return { success: ok, message: ok ? `Instalado ${target.label}` : `Fallo al instalar ${target.label}: ${explainInstallError(out)}` };
+      }
+
+      // Abre la ficha de la app en la tienda del teléfono (origen oficial).
+      case 'OPEN_STORE': {
+        const pkg = String(p.package_name ?? '').trim();
+        if (!pkg) return { success: false, message: 'Falta package_name' };
+        await shell(serial, ['am', 'start', '-a', 'android.intent.action.VIEW', '-d', `market://details?id=${pkg}`]);
+        return { success: true, message: `Ficha de ${pkg} abierta en la tienda` };
+      }
+
+      // Comprueba cuáles de los paquetes indicados están instalados.
+      case 'LIST_PACKAGES': {
+        const wanted = Array.isArray(p.packages) ? p.packages.map(String) : [];
+        const out = await shell(serial, ['pm', 'list', 'packages']);
+        const present = new Set(String(out).split(/\r?\n/).map(l => l.replace(/^package:/, '').trim()).filter(Boolean));
+        const installed = wanted.filter(pkg => present.has(pkg));
+        return {
+          success: true,
+          message: `${installed.length}/${wanted.length} instaladas`,
+          data: { installed, missing: wanted.filter(pkg => !present.has(pkg)) },
+        };
+      }
+
+      // Lee las cuentas reales del teléfono, agrupadas por tipo (com.google, …).
+      // El endpoint /verify-accounts espera exactamente data.by_type.
+      case 'CHECK_ACCOUNTS': {
+        const out = String(await shell(serial, ['dumpsys', 'account']) || '');
+        const by_type = {};
+        // Formato de dumpsys: "Account {name=correo@gmail.com, type=com.google}"
+        const re = /Account\s*\{\s*name=([^,}]+?)\s*,\s*type=([^,}]+?)\s*\}/g;
+        let m;
+        while ((m = re.exec(out))) {
+          const email = m[1].trim();
+          const type = m[2].trim();
+          if (!email) continue;
+          (by_type[type] = by_type[type] || []).push({ email });
+        }
+        // Quita duplicados: dumpsys repite la misma cuenta en varias secciones.
+        let total = 0;
+        for (const type of Object.keys(by_type)) {
+          const seen = new Set();
+          by_type[type] = by_type[type].filter(a => !seen.has(a.email) && seen.add(a.email));
+          total += by_type[type].length;
+        }
+        return { success: true, message: `${total} cuentas en el dispositivo`, data: { by_type, total } };
+      }
+
+      // Asistente de alta: abre "Añadir cuenta" y deja escrito el correo. La
+      // contraseña y la verificación en dos pasos las hace el operador en el
+      // teléfono: Google no permite automatizarlas.
+      case 'OPEN_ADD_ACCOUNT': {
+        const email = String(p.email ?? '').trim();
+        if (!email) return { success: false, message: 'Falta el correo' };
+        const accountType = String(p.platform || 'com.google').trim();
+        try {
+          await shell(serial, ['am', 'start', '-a', 'android.settings.ADD_ACCOUNT_SETTINGS', '-e', 'account_types', accountType]);
+        } catch (_) {
+          await shell(serial, ['am', 'start', '-a', 'android.settings.SYNC_SETTINGS']).catch(() => {});
+        }
+        await sleep(2500);
+        // `input text` no admite espacios sin escapar; un correo no debería
+        // llevarlos, pero lo normalizamos por si acaso.
+        await shell(serial, ['input', 'text', email.replace(/ /g, '%s')]).catch(() => {});
+        return {
+          success: true,
+          message: `Pantalla de alta abierta con ${email} escrito. Introduce la contraseña en el teléfono.`,
+          data: { email, account_type: accountType, manual_step: 'contraseña + verificación en dos pasos' },
+        };
       }
 
       case 'GRANT_PERMISSION':
@@ -487,13 +723,8 @@ async function execute(serial, command, params) {
         await shell(serial, ['input', 'keyevent', '223']); // SLEEP
         return { success: true, message: 'Pantalla apagada' };
 
-      case 'PRESS_HOME':
-        await shell(serial, ['input', 'keyevent', '3']); // KEYCODE_HOME
-        return { success: true, message: 'Botón Inicio enviado' };
-
-      case 'PRESS_BACK':
-        await shell(serial, ['input', 'keyevent', '4']); // KEYCODE_BACK
-        return { success: true, message: 'Botón Atrás enviado' };
+      // PRESS_HOME y PRESS_BACK se atienden más arriba (mismo keyevent); este
+      // bloque duplicado nunca se ejecutaba.
 
       case 'UNLOCK':
         await shell(serial, ['input', 'keyevent', '224']);
@@ -749,15 +980,9 @@ async function execute(serial, command, params) {
         return { success: true, message: `Cuenta reseteada: ${next.email}`, data: { account_id: next.id, email: next.email, platform } };
       }
 
-      // ---------- Capturar texto de pantalla ----------
-      case 'READ_SCREEN_TEXT': {
-        const xml = await dumpUi(serial);
-        const texts = [];
-        const re = /(?:text|content-desc)="([^"]*)"/g; let m;
-        while ((m = re.exec(xml))) { const s = m[1].trim(); if (s) texts.push(s); }
-        const uniq = [...new Set(texts)];
-        return { success: true, message: `Texto leído (${uniq.length} elementos)`, data: { text: uniq.join(' | '), items: uniq } };
-      }
+      // READ_SCREEN_TEXT se atiende más arriba con idéntica implementación;
+      // este bloque duplicado era código muerto.
+
       case 'SCREEN_RECORD': {
         const secs = Math.min(p.duration_seconds ?? 10, 180);
         const remote = '/sdcard/mcp_rec.mp4';
@@ -813,7 +1038,10 @@ async function captureFrame(device, opts = {}) {
     return { success: true, image: cached.image, mime: cached.mime, source: cached.source, cached: true };
   }
   try {
-    const png = await adb(['-s', serial, 'exec-out', 'screencap', '-p'], { binary: true, timeout: 15000, lowPriority: true });
+    // Solo las miniaturas del muro van en baja prioridad. El teléfono enfocado
+    // debe adelantarlas: si no, su captura espera detrás de hasta 13 capturas del
+    // muro en la cola ADB y el visor se siente pegajoso al cambiar de dispositivo.
+    const png = await adb(['-s', serial, 'exec-out', 'screencap', '-p'], { binary: true, timeout: 15000, lowPriority: thumb });
     if (!png || png.length < 100) {
       if (cached) return { success: true, image: cached.image, mime: cached.mime, source: cached.source };
       return { success: false, message: 'Captura ADB vacía' };
@@ -828,18 +1056,108 @@ async function captureFrame(device, opts = {}) {
   }
 }
 
+async function _adbConnect(target, lowPriority = false, timeout = 15000) {
+  try {
+    const out = await adb(['connect', target], { timeout, lowPriority });
+    // "connected to X" y "already connected to X" cuentan como éxito; "failed to
+    // connect"/"cannot connect" no contienen "connected", así que no falsean.
+    const ok = /connected/i.test(out || '');
+    if (ok) knownTcp.set(target, 0); // vigilar para reconexión automática
+    return { success: ok, message: ok ? `Dispositivo TCP conectado exitosamente: ${target}` : `ADB: ${String(out || '').trim() || 'sin respuesta'}` };
+  } catch (e) {
+    return { success: false, message: `Error conectando TCP: ${e.message}` };
+  }
+}
+
 async function connectTcp(address) {
   let target = String(address || '').trim();
   if (!target) return { success: false, message: 'Dirección TCP requerida' };
   if (!target.includes(':')) target += ':5555';
-  try {
-    const out = await adb(['connect', target], { timeout: 15000 });
-    const ok = /connected/i.test(out || '');
-    poll();
-    return { success: ok, message: ok ? `Dispositivo TCP conectado exitosamente: ${target}` : `ADB: ${out}` };
-  } catch (e) {
-    return { success: false, message: `Error conectando TCP: ${e.message}` };
+  const result = await _adbConnect(target);
+  poll();
+  return result;
+}
+
+// ---------- escaneo de rango IP ----------
+// Un `adb connect` contra una IP muerta tarda segundos y ocupa un hueco de la cola
+// ADB; un socket TCP crudo falla en milisegundos. Por eso sondeamos primero el
+// puerto y solo gastamos `adb connect` en las IPs que responden.
+function probeTcp(ip, port, timeout = 400) {
+  return new Promise((resolve) => {
+    const sock = new net.Socket();
+    let settled = false;
+    const finish = (ok) => { if (settled) return; settled = true; sock.destroy(); resolve(ok); };
+    sock.setTimeout(timeout);
+    sock.once('connect', () => finish(true));
+    sock.once('timeout', () => finish(false));
+    sock.once('error', () => finish(false));
+    sock.connect(port, ip);
+  });
+}
+
+const MAX_PROBES = 64;        // sondas TCP simultáneas (baratas, no tocan adb.exe)
+// Un host con el puerto abierto que NO sea un adbd (impresora, NAS, contenedor…)
+// deja `adb connect` colgado hasta su timeout, ocupando un hueco de la cola ADB.
+// Limitamos cuántos puede haber a la vez para no dejar sin huecos a los comandos
+// interactivos, y acortamos su timeout: un teléfono sano responde en decenas de ms.
+const MAX_SCAN_CONNECTS = 6;
+const SCAN_CONNECT_TIMEOUT = 8000;
+
+// Ejecuta `worker` sobre `items` con como mucho `limit` en vuelo, conservando el
+// orden de entrada en el resultado.
+async function mapLimit(items, limit, worker) {
+  const out = new Array(items.length);
+  let next = 0;
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (true) {
+      const i = next++;
+      if (i >= items.length) return;
+      out[i] = await worker(items[i], i);
+    }
+  });
+  await Promise.all(runners);
+  return out;
+}
+
+// Escanea `prefix`.from … `prefix`.to en el puerto dado y conecta lo que responda.
+// Devuelve una fila por IP viva: { ip, address, ok, message }.
+async function scanRange({ prefix, from = 0, to = 254, port = 5555, probeTimeout = 400 } = {}) {
+  const base = String(prefix || '').trim().replace(/\.+$/, '');
+  if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(base) || base.split('.').some(o => Number(o) > 255)) {
+    return { success: false, message: 'Prefijo IP inválido; se espera "a.b.c" (ej. 192.168.60)' };
   }
+  const p = Math.max(1, Math.min(65535, Number(port) || 5555));
+  let lo = Math.max(0, Math.min(255, Number(from) || 0));
+  let hi = Math.max(0, Math.min(255, Number.isFinite(Number(to)) ? Number(to) : 254));
+  if (hi < lo) [lo, hi] = [hi, lo];
+  const timeout = Math.max(100, Math.min(5000, Number(probeTimeout) || 400));
+
+  const hosts = [];
+  for (let i = lo; i <= hi; i++) hosts.push(`${base}.${i}`);
+
+  const results = [];
+  for (let i = 0; i < hosts.length; i += MAX_PROBES) {
+    const chunk = hosts.slice(i, i + MAX_PROBES);
+    const alive = (await Promise.all(
+      chunk.map(async ip => (await probeTcp(ip, p, timeout)) ? ip : null)
+    )).filter(Boolean);
+    // En paralelo (con tope), no encadenados: un host que cuelgue no debe retrasar
+    // a los demás. lowPriority mantiene el escaneo detrás de los comandos interactivos.
+    results.push(...await mapLimit(alive, MAX_SCAN_CONNECTS, async (ip) => {
+      const address = `${ip}:${p}`;
+      const r = await _adbConnect(address, true, SCAN_CONNECT_TIMEOUT);
+      return { ip, address, ok: r.success, message: r.message };
+    }));
+  }
+
+  if (results.some(r => r.ok)) poll();
+  return {
+    success: true,
+    scanned: hosts.length,
+    found: results.length,
+    connected: results.filter(r => r.ok).length,
+    results,
+  };
 }
 
 // ---------- API pública para el router ----------
@@ -854,4 +1172,4 @@ function start(config) {
 }
 function stop() { if (pollTimer) clearInterval(pollTimer); }
 
-module.exports = { start, stop, has, execute, captureFrame, connectTcp, live, adbStats };
+module.exports = { start, stop, has, execute, captureFrame, connectTcp, scanRange, live, adbStats };

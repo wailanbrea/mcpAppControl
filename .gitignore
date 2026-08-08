@@ -34,6 +34,11 @@ mcp-server/dist/
 mcp-server/bundle/
 desktop/release/
 desktop/release-*/
+# Salida de electron-builder: cada instalador pesa ~108 MB y se regenera con
+# `npm run dist`. Nunca debe entrar al repositorio.
+desktop/dist/
+desktop/dist_*/
+desktop/builder-debug.yml
 desktop/appcontrol.sqlite*
 desktop/settings.json
 desktop/screenshots/

@@ -121,8 +121,10 @@ body.bsolutions-theme {
 .card-header-flex { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 
 /* SUB TABS ACCIONES */
-.sub-tabs { display: flex; background: #f3f4f6; padding: 2px; border-radius: 6px; margin-bottom: 12px; }
-.sub-tab { flex: 1; border: none; background: none; padding: 5px 8px; font-size: 12px; font-weight: 500; color: var(--text-muted); cursor: pointer; border-radius: 5px; }
+/* Con una pestaña por aplicación ya no caben en una fila: sin el salto, las
+   últimas (Twitch, Fleet Router, Hermes) quedaban cortadas e inalcanzables. */
+.sub-tabs { display: flex; flex-wrap: wrap; gap: 2px; background: #f3f4f6; padding: 2px; border-radius: 6px; margin-bottom: 12px; }
+.sub-tab { flex: 1 1 auto; border: none; background: none; padding: 5px 8px; font-size: 12px; font-weight: 500; color: var(--text-muted); cursor: pointer; border-radius: 5px; white-space: nowrap; }
 .sub-tab.active { background: #ffffff; color: var(--text-dark); font-weight: 600; box-shadow: var(--shadow-sm); }
 
 /* ACTION BUTTONS GRID MCP CONTROL BSOLUTIONS */

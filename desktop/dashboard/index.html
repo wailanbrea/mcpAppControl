@@ -46,7 +46,8 @@
                             <div class="sub-tabs">
                                 <button class="sub-tab active" onclick="switchActionSubTab('general', this)">General</button>
                                 <button class="sub-tab" onclick="switchActionSubTab('adb', this)">Comandos ADB</button>
-                                <button class="sub-tab" onclick="switchActionSubTab('scripts', this)">Scripts</button>
+                                <button class="sub-tab" onclick="switchActionSubTab('scripts', this)">Rutinas</button>
+                                <button class="sub-tab" onclick="switchActionSubTab('tikmatrix', this)">TikMatrix</button>
                                 <button class="sub-tab" onclick="switchActionSubTab('fleet', this)">Fleet Router</button>
                                 <button class="sub-tab" onclick="switchActionSubTab('hermes', this)">Hermes</button>
                             </div>
@@ -90,6 +91,62 @@
                                 <button class="action-btn" style="grid-column: 1 / -1; font-weight: 700; background: #4f46e5; color:#fff; padding: 12px; font-size:13px;" onclick="openRoutineBuilder()" title="Crea rutinas paso a paso, prográmalas por horas o en bucle, y gestiona cuentas">🛠️ Constructor de rutinas y horarios</button>
                                 <button class="action-btn" style="grid-column: 1 / -1; font-weight: 700; background: #db2777; color:#fff; padding: 12px; font-size:13px;" onclick="openViewsManager()" title="Crea campañas de visualizaciones (TikTok, YouTube, Instagram, X) con patrones orgánicos por plataforma">📺 Campañas de Views</button>
                                 <p class="sub-tab-hint">Crea rutinas y horarios, o lanza campañas de views (farmeo de visualizaciones) para los dispositivos seleccionados.</p>
+                            </div>
+
+                            <!-- TikMatrix Automation Suite -->
+                            <div id="actionSubTab-tikmatrix" class="action-buttons-grid" style="display:none;">
+                                <!-- SCRIPTS — mismo conjunto, orden y colores que el panel Scripts de TikMatrix.
+                                     Las etiquetas van en inglés a propósito, para que se correspondan una a una
+                                     con las de la app original y su documentación. -->
+                                <div class="tm-pills">
+                                    <button class="tm-pill" onclick="abrirScriptTikMatrix('TIKMATRIX_LOGIN')" title="Inicia sesión con email o usuario; admite contraseña:secreto_2fa">🔑 Login</button>
+                                    <button class="tm-pill" onclick="abrirScriptTikMatrix('TIKMATRIX_FILL_PROFILE')" title="Apodo, nombre de usuario, biografía y avatar">👤 Fill Profile</button>
+                                    <button class="tm-pill" onclick="abrirScriptTikMatrix('TIKMATRIX_MATCH_ACCOUNTS')" title="Detecta las cuentas presentes en el teléfono">👥 Match Account</button>
+                                    <button class="tm-pill" onclick="abrirScriptTikMatrix('TIKMATRIX_SWITCH_ACCOUNT')" title="Cambia a otra cuenta ya presente en el dispositivo">🔄 Switch Account</button>
+                                    <button class="tm-pill" onclick="abrirScriptTikMatrix('TIKMATRIX_ACCOUNT_WARMUP')" title="Navega el feed viendo, dando like, siguiendo y comentando por probabilidad">🔥 Account Warmup</button>
+                                    <button class="tm-pill" onclick="abrirScriptTikMatrix('TIKMATRIX_PUBLISH_POST')" title="Sube y publica con pie de foto, sonido y espera de subida">📤 Post</button>
+                                    <button class="tm-pill" onclick="abrirScriptTikMatrix('TIKMATRIX_DELETE_POSTS')" title="Elimina publicaciones por debajo de un umbral de vistas">🗑️ Delete Post</button>
+                                    <button class="tm-pill" onclick="abrirScriptTikMatrix('TIKMATRIX_PRIVACY_SETTINGS')" title="Cambia la privacidad en lote por umbral de vistas">🛡️ Privacy Settings</button>
+                                    <button class="tm-pill" onclick="abrirScriptTikMatrix('TIKMATRIX_BOOST_COMMENTS')" title="Da like y responde a comentarios concretos por URL">💬 Boost Comments</button>
+                                    <button class="tm-pill" onclick="abrirScriptTikMatrix('TIKMATRIX_BOOST_LIVES')" title="Entra a directos, ve, da likes y comenta">📹 Boost Lives</button>
+                                    <button class="tm-pill" onclick="abrirScriptTikMatrix('TIKMATRIX_SCRAPE_USERS')" title="Extrae usuarios por seguidores, seguidos o palabra clave">📥 Scrape Users</button>
+                                    <button class="tm-pill" onclick="abrirScriptTikMatrix('TIKMATRIX_FOLLOW_BACK')" title="Devuelve el seguimiento a quien te sigue y aún no sigues">↩️ Follow Back</button>
+                                    <button class="tm-pill" onclick="abrirScriptTikMatrix('TIKMATRIX_FOLLOW_SUGGESTED')" title="Sigue cuentas de la pestaña Sugeridas">✅ Follow Suggested</button>
+                                    <button class="tm-pill" onclick="abrirScriptTikMatrix('TIKMATRIX_UNFOLLOW_ALL')" title="Recorre la lista de seguidos dejando de seguir">🚫 Unfollow All</button>
+                                    <button class="tm-pill tm-green" onclick="abrirScriptTikMatrix('TIKMATRIX_SUPER_MARKETING')" title="Cola única: seguir, DM, interacción con publicaciones y comentarios">🚀 Super Marketing</button>
+                                    <button class="tm-pill tm-amber" onclick="abrirScriptTikMatrix('TIKMATRIX_TEST_SCRIPT')" title="Comprueba sin efectos: app instalada, uiautomator, resolución e idioma">🧪 Test Script</button>
+                                    <button class="tm-pill tm-red" onclick="detenerTareasTikMatrix()" title="Cancela las tareas en curso y cierra la app en los dispositivos">⏹️ Stop Task</button>
+                                </div>
+
+                                <!-- Scripts que la doc de TikMatrix ya absorbió dentro de Super Marketing,
+                                     mantenidos sueltos porque lanzarlos por separado sigue siendo útil. -->
+                                <div class="tm-sep">Extras</div>
+                                <div class="tm-pills">
+                                    <button class="tm-pill tm-ghost" onclick="abrirScriptTikMatrix('TIKMATRIX_BOOST_POSTS')" title="Like, guardar, repost, compartir y comentar sobre una lista de URLs">📈 Boost Posts</button>
+                                    <button class="tm-pill tm-ghost" onclick="abrirScriptTikMatrix('TIKMATRIX_MASS_DM')" title="DM masivo con plantillas, spintax y placeholders">📨 Mass DM</button>
+                                    <button class="tm-pill tm-ghost" onclick="abrirScriptTikMatrix('TIKMATRIX_MASS_COMMENT')" title="Comenta una lista de publicaciones por URL">🗨️ Mass Comment</button>
+                                    <button class="tm-pill tm-ghost" onclick="abrirScriptTikMatrix('TIKMATRIX_LIST_PACKAGES')" title="Comprueba qué apps objetivo hay instaladas, clones incluidos">📦 App Packages</button>
+                                </div>
+
+                                <!-- Comandos ADB sueltos: no son scripts, son acciones de una sola pulsación. -->
+                                <div class="tm-sep">Comandos directos</div>
+                                <button class="action-btn" style="grid-column: 1 / -1; font-weight: 700; background: #000; color:#fff; border: 1px solid #333; padding: 10px; font-size:13px;" onclick="quickAction('TIKMATRIX_INSTALL_AGENT')" title="Instala los APKs auxiliares com.github.tikmatrix y el teclado FastInputIME en los teléfonos">📱 Instalar Agente TikMatrix &amp; FastInputIME</button>
+                                <button class="action-btn blue" onclick="quickAction('TIKMATRIX_OPEN_TIKTOK')" title="Abre la app de TikTok (Musically/Aweme) directamente en el feed principal">🎵 Abrir TikTok</button>
+                                <button class="action-btn blue" onclick="quickAction('TIKMATRIX_BROWSE_FEED', { count: 5 })" title="Desliza orgánicamente por 5 videos del feed con pausas humanas">👀 Navegar Feed</button>
+                                <button class="action-btn blue" onclick="quickAction('TIKMATRIX_LIKE_FEED')" title="Envía Me Gusta (doble toque) a la publicación en pantalla">❤️ Dar Me Gusta</button>
+                                <button class="action-btn blue" onclick="quickAction('TIKMATRIX_FAVORITE_VIDEO')" title="Guarda la publicación activa en Favoritos">⭐ Guardar Favorito</button>
+                                <button class="action-btn blue" onclick="promptTikMatrixComment()" title="Comenta la publicación activa con el texto que desees">💬 Comentar publicación</button>
+                                <button class="action-btn blue" onclick="promptTikMatrixFollowUser()" title="Busca el perfil de un usuario y le da a Seguir">👤 Seguir Usuario</button>
+                                <button class="action-btn blue" onclick="promptTikMatrixSendDM()" title="Envía un mensaje privado directo (DM)">✉️ Enviar DM</button>
+                                <button class="action-btn blue" onclick="quickAction('TIKMATRIX_WATCHER_TICK')" title="Escanea y cierra popups molestos (Permitir, Entendido, Ahora no)">🛡️ Cerrar Popups</button>
+                                <button class="action-btn blue" onclick="promptTikMatrixSetText()" title="Envía texto instantáneo sin abrir el teclado nativo usando ADB_SET_TEXT">⌨️ Inyectar texto</button>
+                                <button class="action-btn blue" onclick="quickAction('TIKMATRIX_CLEAR_TEXT')" title="Limpia el texto del campo enfocado mediante ADB_CLEAR_TEXT">🧹 Limpiar campo</button>
+                                <button class="action-btn blue" onclick="promptTikMatrixSimulateTyping()" title="Simula el tipeo de caracteres humano con retardos aleatorios">✍️ Tipeo humano</button>
+
+                                <div class="tm-sep">Proxy</div>
+                                <button class="action-btn blue" onclick="promptConfigureProxyRotation()" title="Configura la URL de refresco/rotación de IP para los dispositivos">🔄 Configurar Rotación Proxy</button>
+                                <button class="action-btn blue" onclick="quickAction('TIKMATRIX_ROTATE_PROXY')" title="Solicita una nueva IP llamando a la URL de rotación configurada">🌐 Rotar IP ahora</button>
+                                <button class="action-btn" style="grid-column: 1 / -1; background:#b91c1c; color:#fff; font-weight:700;" onclick="quickAction('TIKMATRIX_CLEAR_DCIM')" title="Limpia las imágenes y vídeos procesados de la galería DCIM y tarjeta SD">🗑️ Limpiar fotos y vídeos DCIM</button>
                             </div>
 
                             <!-- Fleet Router & Xpace Integration -->
@@ -181,6 +238,13 @@
             <!-- PANTALLA EN VIVO DEL TELÉFONO -->
             <div class="phone-screen-container">
                 <img id="screenViewerImage" class="phone-screen-img" alt="Pantalla en tiempo real" draggable="false" ondragstart="return false" onpointerdown="handleMouseDown(event)" onpointerup="handleMouseUp(event)" onpointercancel="handleMouseUp(event)" onwheel="handleWheel(event)" style="cursor: grab;" title="Clic para tocar, arrastra para deslizar, rueda del ratón para scroll">
+                <!-- Espejo scrcpy: flujo H.264 en vivo. Sustituye a la <img> de capturas
+                     cuando el dispositivo acepta el modo espejo; si no, queda oculto. -->
+                <canvas id="screenViewerCanvas" class="phone-screen-img" hidden
+                        onpointerdown="handleMirrorDown(event)" onpointermove="handleMirrorMove(event)"
+                        onpointerup="handleMirrorUp(event)" onpointercancel="handleMirrorUp(event)"
+                        onwheel="handleMirrorWheel(event)" style="cursor: grab; touch-action: none;"
+                        title="Espejo en vivo: arrastra para deslizar en tiempo real"></canvas>
                 <div class="phone-overlay-status" id="screenViewerStatus">Conectando...</div>
             </div>
 
@@ -223,7 +287,63 @@
         </div>
     </div>
 
+    <!-- Diálogo de parámetros de los scripts TikMatrix -->
+    <div id="tmScriptModal" class="custom-modal-overlay" hidden>
+        <div class="custom-modal-box tm-script-box">
+            <h3 id="tmScriptTitle">Script</h3>
+            <p id="tmScriptDesc" class="muted-text"></p>
+            <p id="tmScriptNote" class="tm-note" hidden></p>
+            <p id="tmScriptWarn" class="tm-warn" hidden>⚠️ Esta acción no se puede deshacer. Pruébala primero en un dispositivo.</p>
+            <div id="tmScriptFields" class="tm-fields"></div>
+            <p id="tmScriptTargets" class="muted-text"></p>
+            <div class="modal-actions">
+                <button class="btn btn-secondary-sm" onclick="cerrarScriptTikMatrix()">Cancelar</button>
+                <button class="btn btn-primary-sm" style="padding: 6px 14px;" onclick="lanzarScriptTikMatrix()">Ejecutar script</button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .tm-script-box { max-width: 560px; width: 92vw; }
+        .tm-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; max-height: 52vh; overflow-y: auto; padding: 4px 2px; }
+        .tm-campo { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; }
+        .tm-campo textarea { grid-column: 1 / -1; resize: vertical; font-family: inherit; }
+        .tm-campo:has(textarea) { grid-column: 1 / -1; }
+        .tm-check { flex-direction: row; align-items: center; gap: 8px; font-weight: 500; }
+        .tm-check input { width: auto; }
+        .tm-warn { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; border-radius: 6px; padding: 8px 10px; font-size: 12px; font-weight: 600; }
+        .tm-note { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; border-radius: 6px; padding: 8px 10px; font-size: 12px; font-weight: 500; }
+        .tm-grupo {
+            grid-column: 1 / -1; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border-color);
+            font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .06em;
+        }
+        .tm-ancho { grid-column: 1 / -1; }
+
+        /* Píldoras de scripts: ancho según el texto y salto de línea natural,
+           como el panel Scripts de TikMatrix. El contenedor padre es un grid,
+           de ahí el grid-column para ocupar el ancho completo. */
+        .tm-pills { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
+        .tm-pill {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: #4f46e5; color: #fff; border: none; border-radius: 8px;
+            padding: 9px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
+            line-height: 1.15; white-space: nowrap; transition: filter .12s ease;
+        }
+        .tm-pill:hover { filter: brightness(1.12); }
+        .tm-pill:active { filter: brightness(.92); }
+        .tm-green { background: #10b981; }
+        .tm-amber { background: #f59e0b; }
+        .tm-red   { background: #f87171; }
+        .tm-ghost { background: #6366f1; opacity: .85; font-weight: 500; }
+        .tm-sep {
+            grid-column: 1 / -1; margin-top: 12px; font-size: 11px; font-weight: 700;
+            color: #64748b; text-transform: uppercase; letter-spacing: .06em;
+        }
+    </style>
+
+    <script src="/dashboard/js/mirror-client.js?v=20260818-v1"></script>
     <script src="/dashboard/js/dashboard.js?v=20260725-v8"></script>
+    <script src="/dashboard/js/tikmatrix-ui.js?v=20260818-v1"></script>
     <script src="/dashboard/js/routines.js?v=20260725-v8"></script>
     <script src="/dashboard/js/monitor-ui.js?v=20260725-v6"></script>
     <script src="/dashboard/js/views-ui.js?v=20260725-v7"></script>

@@ -1,0 +1,13 @@
+scrcpy-server.jar — componente de dispositivo del proyecto scrcpy
+Copyright (C) Genymobile / Romain Vimont
+Licencia: Apache License 2.0 — https://github.com/Genymobile/scrcpy
+
+Version del servidor: 3.1
+
+Este archivo se ejecuta EN EL TELEFONO (app_process) para transmitir la pantalla
+por H.264 y recibir eventos de entrada. El cliente que lo consume es
+desktop/adb/mirror.js, escrito para este proyecto.
+
+Para actualizarlo, descarga el scrcpy-server correspondiente a la version de
+scrcpy que quieras usar y ajusta SCRCPY_VERSION en desktop/adb/mirror.js: el
+servidor rechaza el arranque si la version que envia el cliente no coincide.

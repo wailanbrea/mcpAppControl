@@ -60,6 +60,10 @@
       {
         "from": "vendor/node-runtime/NOTICE.txt",
         "to": "node-runtime/NOTICE.txt"
+      },
+      {
+        "from": "vendor/scrcpy",
+        "to": "scrcpy"
       }
     ],
     "win": {

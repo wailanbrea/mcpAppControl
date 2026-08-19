@@ -66,6 +66,22 @@ CREATE TABLE IF NOT EXISTS devices (
   updated_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS proxy_rotations (
+  device_serial TEXT PRIMARY KEY,
+  rotation_url TEXT NOT NULL,
+  method TEXT DEFAULT 'GET',
+  headers TEXT,
+  body TEXT,
+  timeout_ms INTEGER DEFAULT 10000,
+  wait_secs INTEGER DEFAULT 30,
+  cooldown_secs INTEGER DEFAULT 30,
+  last_status INTEGER DEFAULT 0,
+  last_message TEXT,
+  last_rotated_at TEXT,
+  created_at TEXT,
+  updated_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS workflows (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
@@ -543,8 +559,17 @@ function openNative(file) {
 }
 
 async function openSqlJs(file = ':memory:') {
+  let wasmBinary = undefined;
+  try {
+    const wasmPath = require.resolve('sql.js/dist/sql-wasm.wasm');
+    if (fs.existsSync(wasmPath)) {
+      wasmBinary = fs.readFileSync(wasmPath);
+    }
+  } catch (_) {}
+
   const SQL = await initSqlJs({
     locateFile: filename => require.resolve(`sql.js/dist/${filename}`),
+    wasmBinary,
   });
 
   let native;

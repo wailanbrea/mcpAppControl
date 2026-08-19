@@ -309,7 +309,48 @@ function createServer(db, routerPort, apiToken = '') {
     res.json({ success: true, data: db.get(`SELECT * FROM devices WHERE id=?`, [dev.id]), message: 'Device updated successfully' });
   });
 
-  // ---- Proxy / IP de salida por dispositivo ----
+  // ---- PROXY ROTATION ENDPOINTS (REPLICACIÓN TIKMATRIX) ----
+  app.get('/api/v1/proxy_rotation/:serial', (req, res) => {
+    const row = db.get(`SELECT * FROM proxy_rotations WHERE device_serial = ?`, [req.params.serial]);
+    res.json({ success: true, data: row || null });
+  });
+
+  app.post('/api/v1/proxy_rotation', (req, res) => {
+    const { device_serial, rotation_url, method, headers, body, timeout_ms, wait_secs, cooldown_secs } = req.body || {};
+    if (!device_serial || !rotation_url) {
+      return res.status(400).json({ success: false, message: 'device_serial y rotation_url son requeridos' });
+    }
+    const iso = now();
+    const existing = db.get(`SELECT * FROM proxy_rotations WHERE device_serial = ?`, [device_serial]);
+    if (existing) {
+      db.run(`UPDATE proxy_rotations SET rotation_url=?, method=?, headers=?, body=?, timeout_ms=?, wait_secs=?, cooldown_secs=?, updated_at=? WHERE device_serial=?`,
+        [rotation_url, method || 'GET', headers ? JSON.stringify(headers) : null, body || null, timeout_ms || 10000, wait_secs ?? 30, cooldown_secs ?? 30, iso, device_serial]);
+    } else {
+      db.run(`INSERT INTO proxy_rotations (device_serial, rotation_url, method, headers, body, timeout_ms, wait_secs, cooldown_secs, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [device_serial, rotation_url, method || 'GET', headers ? JSON.stringify(headers) : null, body || null, timeout_ms || 10000, wait_secs ?? 30, cooldown_secs ?? 30, iso, iso]);
+    }
+    const updated = db.get(`SELECT * FROM proxy_rotations WHERE device_serial = ?`, [device_serial]);
+    res.json({ success: true, message: 'Configuración de rotación de proxy guardada', data: updated });
+  });
+
+  app.delete('/api/v1/proxy_rotation/:serial', (req, res) => {
+    db.run(`DELETE FROM proxy_rotations WHERE device_serial = ?`, [req.params.serial]);
+    res.json({ success: true, message: 'Configuración de rotación de proxy eliminada' });
+  });
+
+  // El transporte ADB no expone dispatchCommand (solo execute): la llamada
+  // anterior lanzaba TypeError y la rotación devolvía 500 siempre.
+  app.post('/api/v1/proxy_rotation/rotate/:serial', async (req, res) => {
+    const key = req.params.serial;
+    const dev = db.get(`SELECT * FROM devices WHERE adb_serial = ? OR serial_number = ? OR id = ?`, [key, key, key]);
+    const serial = (dev && dev.adb_serial) || key;
+    try {
+      const result = await adb.execute(serial, 'TIKMATRIX_ROTATE_PROXY', {});
+      res.json(result);
+    } catch (e) {
+      res.status(500).json({ success: false, message: `Fallo al rotar IP: ${e.message}` });
+    }
+  });
   // Guarda la config de proxy y la aplica (o la limpia) en el teléfono por ADB.
   app.put('/api/v1/devices/:id/proxy', async (req, res) => {
     const dev = db.get(`SELECT * FROM devices WHERE id = ? OR serial_number = ?`, [req.params.id, req.params.id]);
@@ -708,6 +749,50 @@ function createServer(db, routerPort, apiToken = '') {
     db.run(`UPDATE tasks SET status = 'cancelled', completed_at = ? WHERE id = ?`, [now(), task.id]);
     db.run(`UPDATE devices SET status = 'online', current_task_id = NULL WHERE current_task_id = ?`, [task.id]);
     res.json({ success: true, data: db.get(`SELECT * FROM tasks WHERE id = ?`, [task.id]), message: 'Task cancelled successfully' });
+  });
+
+  // Stop Task: para todo lo que esté en cola o corriendo en los dispositivos
+  // indicados y devuelve el teléfono a un estado limpio (cierra la app objetivo).
+  // El cancelado por tarea suelta ya existía, pero desde el panel hace falta
+  // frenar una tanda entera de golpe.
+  app.post('/api/v1/tasks/stop', async (req, res) => {
+    const { device_ids, package_name } = req.body || {};
+    if (!Array.isArray(device_ids) || !device_ids.length) {
+      return res.status(422).json({ success: false, message: 'device_ids es requerido' });
+    }
+    const marcas = device_ids.map(() => '?').join(',');
+    const devs = db.all(`SELECT * FROM devices WHERE id IN (${marcas})`, device_ids);
+    if (!devs.length) return res.status(404).json({ success: false, message: 'Ningún dispositivo encontrado' });
+
+    const ts = now();
+    const seriales = devs.map(d => d.serial_number);
+    const marcasSerial = seriales.map(() => '?').join(',');
+
+    const asignaciones = db.run(
+      `UPDATE task_assignments SET status='cancelled', completed_at=?, updated_at=? WHERE status IN ('running','assigned') AND device_id IN (${marcas})`,
+      [ts, ts, ...device_ids]).changes;
+
+    const tareas = db.run(
+      `UPDATE tasks SET status='cancelled', completed_at=?, updated_at=? WHERE status IN ('running','pending') AND id IN (SELECT task_id FROM task_assignments WHERE device_id IN (${marcas}))`,
+      [ts, ts, ...device_ids]).changes;
+
+    db.run(`UPDATE devices SET status='online', current_task_id=NULL, updated_at=? WHERE id IN (${marcas})`, [ts, ...device_ids]);
+    try { db.run(`UPDATE view_sessions SET status='cancelled', updated_at=? WHERE status='running' AND device_serial IN (${marcasSerial})`, [ts, ...seriales]); } catch (_) {}
+
+    // Cierra la app en el teléfono para que no siga sola donde la dejó el script.
+    const pkg = package_name || 'com.zhiliaoapp.musically';
+    let cerrados = 0;
+    for (const d of devs) {
+      if (d.adb_serial && adb.has && adb.has(d.adb_serial)) {
+        try { await adb.execute(d.adb_serial, 'FORCE_STOP', { package_name: pkg }); cerrados++; } catch (_) {}
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Detenidas ${tareas} tareas y ${asignaciones} asignaciones en ${devs.length} dispositivo(s); app cerrada en ${cerrados}`,
+      data: { tasks: tareas, assignments: asignaciones, devices: devs.length, force_stopped: cerrados },
+    });
   });
 
   app.post('/api/v1/tasks/:id/retry', async (req, res) => {

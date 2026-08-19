@@ -14,14 +14,22 @@ const sleep = ms => new Promise(r => setTimeout(r, Math.min(ms, 120000)));
 const uuid = () => crypto.randomUUID();
 
 // ---- POST al Command Router (mismo proceso), devuelve {success,message,data} ----
+// Scripts de la suite TikMatrix que son bucles de minutos, no comandos puntuales:
+// con el timeout general de 130s el router abortaba un warmup de 10 minutos a la
+// tercera parte y lo reportaba como fallo mientras el teléfono seguía trabajando.
+const COMANDOS_LARGOS = /^TIKMATRIX_(ACCOUNT_WARMUP|SUPER_MARKETING|BOOST_LIVES|BOOST_POSTS|BOOST_COMMENTS|MASS_DM|MASS_COMMENT|SCRAPE_USERS|DELETE_POSTS|PRIVACY_SETTINGS|FOLLOW_SUGGESTED|FOLLOW_BACK|UNFOLLOW_ALL|PUBLISH_POST|LOGIN)$/;
+
+function dispatchTimeout(command) {
+  if (/^INSTALL/.test(command)) return 660000;
+  if (COMANDOS_LARGOS.test(command)) return 6 * 3600 * 1000;   // hasta 6 h
+  return 130000;
+}
+
 function routerDispatch(serial, command, params) {
   return new Promise((resolve) => {
     const body = JSON.stringify({ serial_number: serial, command, params: params || {} });
     const req = http.request({ host: '127.0.0.1', port: ROUTER_PORT, path: '/command/dispatch', method: 'POST',
-      // Instalar un APK grande (TikTok ~300 MB) por WiFi supera de largo los 130s
-      // del resto de comandos: con el timeout corto el router abortaba y reportaba
-      // fallo mientras adb seguía instalando por detrás.
-      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }, timeout: /^INSTALL/.test(command) ? 660000 : 130000 },
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }, timeout: dispatchTimeout(command) },
       (res) => { let d = ''; res.on('data', c => d += c); res.on('end', () => { try { resolve(JSON.parse(d)); } catch { resolve({ success: false, message: 'respuesta inválida del router' }); } }); });
     req.on('error', e => resolve({ success: false, message: `router: ${e.message}` }));
     req.on('timeout', () => { req.destroy(); resolve({ success: false, message: 'timeout del router' }); });

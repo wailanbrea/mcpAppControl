@@ -17,6 +17,7 @@ const settings = require('./server/settings');
 const views = require('./server/views');
 const router = require('./router');
 const adb = require('./adb');
+const mirror = require('./adb/mirror');
 
 const HTTP_PORT = 8733;      // puerto local del backend Express embebido
 const WS_PORT = 6011;        // puerto del Command Router (WebSocket)
@@ -81,17 +82,41 @@ function createWindow() {
   win.on('closed', () => { win = null; });
 }
 
-// Una sola instancia: evita que un segundo arranque intente enlazar el puerto
-// 8733 (fallaría y dejaría la app sin backend / sin dispositivos).
-if (!app.requestSingleInstanceLock()) {
-  app.quit();
-} else {
-  app.on('second-instance', () => {
-    if (win) { if (win.isMinimized()) win.restore(); win.focus(); }
-  });
+// Muestra la ventana existente o la vuelve a crear. Sin la rama de recreación,
+// un proceso que se quedó vivo pero sin ventana (backend levantado, ventana
+// cerrada o fallida) retenía el lock de instancia única y todos los arranques
+// posteriores morían en silencio: la app "no arrancaba" hasta reiniciar el PC.
+function showOrCreateWindow() {
+  if (win && !win.isDestroyed()) {
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
+    return;
+  }
+  createWindow();
 }
 
+// Una sola instancia: evita que un segundo arranque intente enlazar el puerto
+// 8733 (fallaría y dejaría la app sin backend / sin dispositivos).
+// El proceso secundario sale con app.quit() y NO con process.exit(0): la salida
+// abrupta cortaba el aviso 'second-instance' antes de que llegara al primario,
+// de modo que volver a abrir la app no mostraba ninguna ventana.
+const hasLock = app.requestSingleInstanceLock();
+if (!hasLock) {
+  app.quit();
+}
+
+app.on('second-instance', () => { showOrCreateWindow(); });
+app.on('activate', () => { showOrCreateWindow(); });
+
 app.whenReady().then(async () => {
+  // Instancia secundaria: app.quit() no cancela este arranque, así que sin este
+  // corte el segundo proceso abría una SEGUNDA conexión al mismo SQLite, volvía a
+  // enlazar 8733 (en Windows el bind duplicado se acepta y roba tráfico al
+  // primario), lanzaba otro sondeo ADB y terminaba en un diálogo "Error" al
+  // chocar con el puerto 6011. De ahí venían los arranques rotos.
+  if (!hasLock) return;
+
   try {
     apiToken = loadApiToken();
 
@@ -146,6 +171,16 @@ app.whenReady().then(async () => {
       httpServer.on('error', reject);
     });
 
+    // 3b. Espejo scrcpy sobre el mismo servidor (ws /mirror). Sustituye al visor
+    // por capturas: el teléfono codifica H.264 por hardware y los toques viajan
+    // por el socket de control ya abierto.
+    mirror.init({
+      httpServer,
+      adbResolver: adb.resolveAdb,
+      token: apiToken,
+      config: { maxSize: 1024, maxFps: 30, bitRate: 4000000 },
+    });
+
     // 4. Iniciar runner de horarios (cron tick cada 30 segundos)
     scheduleInterval = setInterval(() => {
       try { logic.scheduleTick(); } catch (e) { console.error('[scheduleTick]', e.message); }
@@ -191,6 +226,7 @@ app.whenReady().then(async () => {
     //    frameMaxWidth/frameQuality = streaming ligero del muro (JPEG reescalado).
     adb.start({
       backendUrl: backendApi, backendToken: apiToken,
+      db,                                        // handle abierto de SQLite: comandos como TIKMATRIX_ROTATE_PROXY leen su config de la BD
       frameMaxWidth: 0, frameQuality: 55,        // visor enfocado: resolución NATIVA (para que el toque caiga donde se hace clic) + JPEG
       thumbMaxWidth: 240, thumbQuality: 40, thumbTtlMs: 1500,  // miniaturas del muro (ligeras, escala 40+)
     });
@@ -204,13 +240,29 @@ app.whenReady().then(async () => {
   }
 });
 
+// Cierre ordenado. Cada paso va aislado: antes, si uno lanzaba (adb, router, el
+// cierre del servidor o el de la BD), app.quit() nunca llegaba a ejecutarse y el
+// proceso quedaba vivo sin ventana, reteniendo los puertos 8733/6011 y el lock de
+// instancia única. Ese zombi era la causa de que la app dejara de arrancar.
 app.on('window-all-closed', () => {
-  if (scheduleInterval) clearInterval(scheduleInterval);
-  if (pruneInterval) clearInterval(pruneInterval);
-  if (monitorInterval) clearInterval(monitorInterval);
-  adb.stop();
-  router.stop();
-  if (httpServer) httpServer.close();
-  if (database) database.close();
+  const safe = (etiqueta, fn) => {
+    try { fn(); } catch (e) { console.error(`[cierre] ${etiqueta}:`, e.message); }
+  };
+
+  safe('intervalos', () => {
+    if (scheduleInterval) clearInterval(scheduleInterval);
+    if (pruneInterval) clearInterval(pruneInterval);
+    if (monitorInterval) clearInterval(monitorInterval);
+  });
+  safe('espejo', () => mirror.stopAll());
+  safe('adb', () => adb.stop());
+  safe('router', () => router.stop());
+  safe('http', () => { if (httpServer) httpServer.close(); });
+  safe('db', () => { if (database) database.close(); });
+
   app.quit();
+  // Red de seguridad: si algo mantiene vivo el bucle de eventos y quit() no
+  // termina, forzamos la salida para no dejar otro zombi bloqueando el arranque.
+  const t = setTimeout(() => process.exit(0), 3000);
+  if (t.unref) t.unref();
 });

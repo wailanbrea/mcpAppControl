@@ -8,11 +8,12 @@ const path = require('path');
 const fs = require('fs');
 const net = require('net');
 const maintenance = require('./maintenance');
+const tikmatrix = require('./tikmatrix');
 let settings = null; try { settings = require('../server/settings'); } catch (_) {}
 const HJ = (x, y) => settings ? settings.jitterXY(x, y) : { x, y };
 const HD = (ms) => settings ? settings.varyDuration(ms) : ms;
 
-let CONFIG = { backendUrl: 'http://127.0.0.1:8733/api/v1', backendToken: '', adbPath: null };
+let CONFIG = { backendUrl: 'http://127.0.0.1:8733/api/v1', backendToken: '', adbPath: null, db: null };
 
 // Mapeo de plataforma a package name para LOGIN_GENERIC, BAN_RECOVERY, etc.
 const PLATFORM_PACKAGES = {
@@ -364,8 +365,23 @@ async function tapId(serial, id) {
   return { success: true, message: `Tap en id '${id}'` };
 }
 
+// Contexto que la suite de scripts TikMatrix reutiliza: misma cola de concurrencia
+// ADB, mismo jitter humano y mismo dump de UI que el resto del módulo.
+const TIKMATRIX_CTX = { shell, adb, sleep, dumpUi, live, HJ, HD, CONFIG, execute };
+
 async function execute(serial, command, params) {
   const p = params || {};
+
+  // Los scripts largos (warmup, super marketing, boost lives…) viven en su propio
+  // módulo: son bucles con estado, no comandos de una línea como el resto del switch.
+  if (tikmatrix.handles(command)) {
+    try {
+      return await tikmatrix.run(TIKMATRIX_CTX, serial, command, p);
+    } catch (e) {
+      return { success: false, message: `${command}: ${e.message}` };
+    }
+  }
+
   try {
     switch (command) {
       // Acepta package_name y packageName: las rutinas usan una forma y el panel
@@ -574,6 +590,261 @@ async function execute(serial, command, params) {
       case 'TYPE_TEXT':
         await shell(serial, ['input', 'text', String(p.value ?? '').replace(/ /g, '%s')]);
         return { success: true, message: 'Texto escrito' };
+
+      // ---- TIKMATRIX INTEGRATED AUTOMATION COMMANDS ----
+      case 'TIKMATRIX_INSTALL_AGENT': {
+        const appData = process.env.APPDATA || path.join(process.env.USERPROFILE || '', 'AppData', 'Roaming');
+        const mainApk = path.join(appData, 'com.tikmatrix', 'bin', 'com.github.tikmatrix.apk');
+        const testApk = path.join(appData, 'com.tikmatrix', 'bin', 'com.github.tikmatrix.test.apk');
+        let installed = [];
+        if (fs.existsSync(mainApk)) {
+          await adb(['-s', serial, 'install', '-r', mainApk]).catch(() => {});
+          installed.push('com.github.tikmatrix');
+        }
+        if (fs.existsSync(testApk)) {
+          await adb(['-s', serial, 'install', '-r', testApk]).catch(() => {});
+          installed.push('com.github.tikmatrix.test');
+        }
+        await shell(serial, ['ime', 'set', 'com.github.tikmatrix/.FastInputIME']).catch(() => {});
+        return {
+          success: installed.length > 0,
+          message: installed.length > 0 ? `Agentes TikMatrix instalados (${installed.join(', ')})` : 'No se encontraron APKs de TikMatrix en AppData'
+        };
+      }
+
+      case 'TIKMATRIX_SET_TEXT': {
+        const val = String(p.value ?? p.text ?? '');
+        await shell(serial, ['am', 'broadcast', '-a', 'ADB_SET_TEXT', '--es', 'text', val]);
+        return { success: true, message: `Texto TikMatrix enviado: "${val.slice(0, 20)}..."` };
+      }
+
+      case 'TIKMATRIX_CLEAR_TEXT':
+        await shell(serial, ['am', 'broadcast', '-a', 'ADB_CLEAR_TEXT']);
+        return { success: true, message: 'Texto de campo limpiado por TikMatrix' };
+
+      case 'TIKMATRIX_SIMULATE_TYPING': {
+        const val = String(p.value ?? p.text ?? '');
+        await shell(serial, ['am', 'broadcast', '-a', 'ADB_SIMULATE_TYPING', '--es', 'text', val]);
+        return { success: true, message: `Tipeo simulado TikMatrix enviado` };
+      }
+
+      case 'TIKMATRIX_CLEAR_DCIM': {
+        await shell(serial, ['rm', '-f', '/storage/emulated/0/DCIM/*.mp4', '/storage/emulated/0/DCIM/*.jpg', '/storage/emulated/0/DCIM/*.png']).catch(() => {});
+        await shell(serial, ['rm', '-f', '/storage/emulated/0/DCIM/Camera/*.mp4', '/storage/emulated/0/DCIM/Camera/*.jpg', '/storage/emulated/0/DCIM/Camera/*.png']).catch(() => {});
+        await shell(serial, ['rm', '-f', '/sdcard/*.mp4', '/sdcard/*.jpg', '/sdcard/*.png']).catch(() => {});
+        return { success: true, message: 'Galería DCIM / sdcard limpiada correctamente' };
+      }
+
+      case 'TIKMATRIX_OPEN_TIKTOK': {
+        await shell(serial, ['am', 'start', '-n', 'com.zhiliaoapp.musically/com.ss.android.ugc.aweme.splash.SplashActivity']);
+        return { success: true, message: 'TikTok abierto en el dispositivo' };
+      }
+
+      // --- TIKMATRIX FULL SCRIPTS SUITE REPLICATION ---
+      case 'TIKMATRIX_BROWSE_FEED': {
+        // Navega orgánicamente por el feed deslicando hacia arriba
+        const dev = live.get(serial);
+        const w = dev?.size?.w || 1080, h = dev?.size?.h || 2400;
+        const startY = Math.round(h * 0.75), endY = Math.round(h * 0.25), x = Math.round(w * 0.5);
+        const count = Number(p.count || p.video_count || 5);
+        for (let i = 0; i < count; i++) {
+          const swipeDuration = Math.floor(Math.random() * 150) + 200;
+          await shell(serial, ['input', 'swipe', String(x), String(startY), String(x), String(endY), String(swipeDuration)]);
+          const watchTimeSec = Math.floor(Math.random() * 7) + 5;
+          await sleep(watchTimeSec * 1000);
+        }
+        return { success: true, message: `Navegación orgánica de feed completada (${count} videos)` };
+      }
+
+      case 'TIKMATRIX_LIKE_FEED': {
+        // Da Me Gusta al vídeo actual (doble tap o clic en botón Me Gusta)
+        const dev = live.get(serial);
+        const w = dev?.size?.w || 1080, h = dev?.size?.h || 2400;
+        const x = Math.round(w * 0.5), y = Math.round(h * 0.5);
+        await shell(serial, ['input', 'tap', String(x), String(y)]);
+        await sleep(100);
+        await shell(serial, ['input', 'tap', String(x), String(y)]);
+        return { success: true, message: 'Me Gusta (Like) enviado a la publicación' };
+      }
+
+      case 'TIKMATRIX_FAVORITE_VIDEO': {
+        // Guarda en favoritos (doble tap o intento en barra lateral derecha)
+        const dev = live.get(serial);
+        const w = dev?.size?.w || 1080, h = dev?.size?.h || 2400;
+        const favX = Math.round(w * 0.92), favY = Math.round(h * 0.62);
+        await shell(serial, ['input', 'tap', String(favX), String(favY)]);
+        return { success: true, message: 'Publicación guardada en Favoritos' };
+      }
+
+      case 'TIKMATRIX_COMMENT_FEED': {
+        // Comenta la publicación activa con el texto o lista proporcionada
+        const commentText = String(p.comment || p.text || p.caption || 'Awesome! 🔥').trim();
+        const dev = live.get(serial);
+        const w = dev?.size?.w || 1080, h = dev?.size?.h || 2400;
+        const btnX = Math.round(w * 0.92), btnY = Math.round(h * 0.54);
+        await shell(serial, ['input', 'tap', String(btnX), String(btnY)]); // Abrir comentarios
+        await sleep(1500);
+        await shell(serial, ['am', 'broadcast', '-a', 'ADB_SET_TEXT', '--es', 'text', commentText]).catch(async () => {
+          await shell(serial, ['input', 'text', commentText.replace(/ /g, '%s')]);
+        });
+        await sleep(800);
+        await shell(serial, ['input', 'keyevent', '66']); // Enter / Send
+        await sleep(1000);
+        await shell(serial, ['input', 'keyevent', '4']);  // Back
+        return { success: true, message: `Comentario publicado: "${commentText.slice(0, 20)}..."` };
+      }
+
+      case 'TIKMATRIX_FOLLOW_USER': {
+        // Busca usuario por username y pulsa Seguir
+        const target = String(p.username || p.target || '').replace(/^@/, '').trim();
+        if (!target) return { success: false, message: 'Falta nombre de usuario (target)' };
+        await shell(serial, ['am', 'start', '-a', 'android.intent.action.VIEW', '-d', `snssdk1128://user/profile/${target}`]).catch(async () => {
+          await shell(serial, ['am', 'start', '-a', 'android.intent.action.VIEW', '-d', `https://www.tiktok.com/@${target}`]);
+        });
+        await sleep(2500);
+        const dev = live.get(serial);
+        const w = dev?.size?.w || 1080, h = dev?.size?.h || 2400;
+        const followX = Math.round(w * 0.5), followY = Math.round(h * 0.28);
+        await shell(serial, ['input', 'tap', String(followX), String(followY)]);
+        return { success: true, message: `Seguir enviado a @${target}` };
+      }
+
+      case 'TIKMATRIX_UNFOLLOW_ALL': {
+        // Descorrido masivo en la lista de seguidos
+        const limit = Number(p.limit || 10);
+        const dev = live.get(serial);
+        const w = dev?.size?.w || 1080, h = dev?.size?.h || 2400;
+        const btnX = Math.round(w * 0.85);
+        for (let i = 0; i < limit; i++) {
+          const btnY = Math.round(h * (0.2 + (i % 5) * 0.08));
+          await shell(serial, ['input', 'tap', String(btnX), String(btnY)]);
+          await sleep(600);
+        }
+        return { success: true, message: `Dejar de seguir procesado (${limit} perfiles)` };
+      }
+
+      case 'TIKMATRIX_SEND_DM': {
+        // Envío de mensaje privado directo (DM)
+        const target = String(p.username || p.target || '').replace(/^@/, '').trim();
+        const msg = String(p.message || p.text || 'Hola! 👋').trim();
+        if (!target) return { success: false, message: 'Falta username de destino' };
+        await shell(serial, ['am', 'start', '-a', 'android.intent.action.VIEW', '-d', `https://www.tiktok.com/@${target}`]);
+        await sleep(2500);
+        await shell(serial, ['am', 'broadcast', '-a', 'ADB_SET_TEXT', '--es', 'text', msg]);
+        await sleep(800);
+        await shell(serial, ['input', 'keyevent', '66']);
+        return { success: true, message: `Mensaje directo enviado a @${target}` };
+      }
+
+      case 'TIKMATRIX_POST_VIDEO': {
+        // Carga y publicación de video con pie de foto
+        const caption = String(p.caption || p.postCaption || 'Check this out! #fyp #viral').trim();
+        const dev = live.get(serial);
+        const w = dev?.size?.w || 1080, h = dev?.size?.h || 2400;
+        const plusX = Math.round(w * 0.5), plusY = Math.round(h * 0.95);
+        await shell(serial, ['input', 'tap', String(plusX), String(plusY)]); // Clic en Botón +
+        await sleep(2000);
+        const nextX = Math.round(w * 0.85), nextY = Math.round(h * 0.93);
+        await shell(serial, ['input', 'tap', String(nextX), String(nextY)]); // Siguiente
+        await sleep(1500);
+        await shell(serial, ['am', 'broadcast', '-a', 'ADB_SET_TEXT', '--es', 'text', caption]);
+        await sleep(1000);
+        await shell(serial, ['input', 'tap', String(nextX), String(nextY)]); // Publicar
+        return { success: true, message: `Publicación iniciada con pie de foto: "${caption.slice(0, 20)}..."` };
+      }
+
+      case 'TIKMATRIX_WATCHER_TICK': {
+        // Detector de diálogos/popups (dialog_watcher): cierra popups molestos automáticamente
+        const xml = await dumpUi(serial).catch(() => '');
+        const autoDismiss = ['Permitir', 'Allow', 'Entendido', 'Got it', 'Ahora no', 'Not now', 'Cancelar', 'Cancel', 'Aceptar', 'OK', 'Continuar'];
+        let matched = null;
+        for (const label of autoDismiss) {
+          if (xml.includes(label)) {
+            matched = label;
+            break;
+          }
+        }
+        if (matched) {
+          await shell(serial, ['am', 'broadcast', '-a', 'ADB_SET_TEXT', '--es', 'text', '']).catch(() => {});
+          await shell(serial, ['input', 'keyevent', '4']).catch(() => {}); // Clic en Back para cerrar popup
+          return { success: true, message: `Popup detectado ("${matched}") y cerrado automáticamente`, data: { dismissed: matched } };
+        }
+        return { success: true, message: 'No se detectaron popups molestos en pantalla', data: { dismissed: null } };
+      }
+
+      case 'TIKMATRIX_SCRAPE_ACCOUNT': {
+        // Scrapeo de analíticas y seguidores visibles de la cuenta
+        const xml = await dumpUi(serial).catch(() => '');
+        const reNumbers = /(\d+(?:\.\d+)?[KMB]?)\s*(?:Followers|Seguidores|Likes|Me gusta|Following|Siguiendo)/gi;
+        const metrics = [];
+        let match;
+        while ((match = reNumbers.exec(xml)) !== null) {
+          metrics.push(match[0]);
+        }
+        return {
+          success: true,
+          message: metrics.length ? `Métricas extraídas: ${metrics.join(' | ')}` : 'No se encontraron métricas visibles en pantalla',
+          data: { metrics, raw_len: xml.length }
+        };
+      }
+
+      case 'TIKMATRIX_ROTATE_PROXY': {
+        // Rotación de IP de proxy dinámico/móvil vía URL de refresco.
+        // El handle abierto llega por adb.start({ db }) desde main.js. Requerir
+        // '../server/db' aquí devolvía el MÓDULO (solo exporta open/now/pruneLogs),
+        // así que db.get no existía y el comando fallaba siempre.
+        const db = CONFIG.db;
+        if (!db) return { success: false, message: 'Base de datos no disponible en el transporte ADB' };
+        const row = db.get(`SELECT * FROM proxy_rotations WHERE device_serial = ?`, [serial]);
+        if (!row || !row.rotation_url) {
+          return { success: false, message: 'Dispositivo sin URL de rotación de proxy configurada' };
+        }
+
+        // Verificar período de enfriamiento (cooldown)
+        const now = Date.now();
+        if (row.last_rotated_at && row.cooldown_secs > 0) {
+          const lastTs = new Date(row.last_rotated_at).getTime();
+          if (now - lastTs < row.cooldown_secs * 1000) {
+            return { success: true, message: `Rotación omitida por enfriamiento (cooldown ${row.cooldown_secs}s)` };
+          }
+        }
+
+        let ok = false, msg = '', statusCode = 0;
+        try {
+          const url = row.rotation_url;
+          const method = (row.method || 'GET').toUpperCase();
+          const headers = row.headers ? JSON.parse(row.headers) : {};
+          // fetch() ignora la clave `timeout`: sin AbortSignal, un proveedor que
+          // no responde dejaba la rotación colgada indefinidamente.
+          const opts = { method, headers, signal: AbortSignal.timeout(row.timeout_ms || 10000) };
+          if (row.body && method !== 'GET') opts.body = row.body;
+
+          const res = await fetch(url, opts);
+          statusCode = res.status;
+          const bodyText = await res.text();
+          ok = res.ok;
+          msg = `HTTP ${res.status}: ${bodyText.slice(0, 80)}`;
+        } catch (e) {
+          ok = false;
+          msg = `Error de conexión: ${e.message}`;
+        }
+
+        const isoNow = new Date().toISOString();
+        if (db) {
+          db.run(`UPDATE proxy_rotations SET last_status = ?, last_message = ?, last_rotated_at = ?, updated_at = ? WHERE device_serial = ?`,
+            [ok ? 1 : 0, msg, isoNow, isoNow, serial]);
+        }
+
+        if (ok && row.wait_secs > 0) {
+          await sleep(row.wait_secs * 1000);
+        }
+
+        return {
+          success: ok,
+          message: ok ? `Rotación de IP solicitada correctamente (${msg}). Esperando ${row.wait_secs}s` : `Fallo al rotar IP: ${msg}`,
+          data: { status: statusCode, message: msg, rotated_at: isoNow }
+        };
+      }
 
       // OPEN_APP y GOTO_URL se atienden más arriba; este bloque duplicado era
       // código muerto (un switch solo entra en el primer case que coincide).
@@ -1172,4 +1443,4 @@ function start(config) {
 }
 function stop() { if (pollTimer) clearInterval(pollTimer); }
 
-module.exports = { start, stop, has, execute, captureFrame, connectTcp, scanRange, live, adbStats };
+module.exports = { start, stop, has, execute, captureFrame, connectTcp, scanRange, live, adbStats, resolveAdb };

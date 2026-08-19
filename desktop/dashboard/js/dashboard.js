@@ -395,9 +395,74 @@ function openScreenViewer(deviceId) {
     // competían por la misma cola ADB y le robaban fluidez al visor.
     startScreenWallPolling();
 
-    requestScreenFrame();
-    screenFrameTimer = window.setInterval(requestScreenFrame, 250);
+    // Espejo scrcpy primero: H.264 en vivo a ~30 fps. Solo si no arranca se cae
+    // al bucle de capturas, que en un panel 1440x3200 da 0,4 fps.
+    startMirrorOrFallback(device);
 }
+
+// ==========================================
+// ESPEJO EN VIVO (scrcpy)
+// ==========================================
+
+let mirrorClient = null;
+
+function mirrorElements() {
+    return {
+        canvas: document.getElementById('screenViewerCanvas'),
+        image: document.getElementById('screenViewerImage'),
+    };
+}
+
+async function startMirrorOrFallback(device) {
+    const { canvas, image } = mirrorElements();
+    const serial = device.adb_serial || device.serial_number;
+
+    stopMirror();
+
+    const caeAcapturas = (motivo) => {
+        if (canvas) canvas.hidden = true;
+        if (image) image.style.display = '';
+        setScreenViewerStatus(`Capturas (${motivo})`, true);
+        if (screenFrameTimer !== null) window.clearInterval(screenFrameTimer);
+        requestScreenFrame();
+        screenFrameTimer = window.setInterval(requestScreenFrame, 250);
+    };
+
+    if (!canvas || !window.MirrorClient || !MirrorClient.supported) {
+        return caeAcapturas('WebCodecs no disponible');
+    }
+    if (!serial) return caeAcapturas('sin serial ADB');
+
+    const client = new MirrorClient(canvas);
+    client.onStatus = (msg, err) => { if (viewedDeviceId === device.id) setScreenViewerStatus(msg, !!err); };
+    mirrorClient = client;
+
+    try {
+        await client.connect(serial, getApiToken(), localStorage.getItem('mcp_api_base') || location.origin);
+        if (viewedDeviceId !== device.id) { client.close(); return; }   // cambió de teléfono mientras conectaba
+        if (image) image.style.display = 'none';
+        canvas.hidden = false;
+        // Con el espejo en marcha el sondeo de capturas sobra y solo compite por
+        // la cola ADB con el propio flujo.
+        if (screenFrameTimer !== null) { window.clearInterval(screenFrameTimer); screenFrameTimer = null; }
+    } catch (e) {
+        client.close();
+        if (mirrorClient === client) mirrorClient = null;
+        caeAcapturas(e.message);
+    }
+}
+
+function stopMirror() {
+    if (mirrorClient) { mirrorClient.close(); mirrorClient = null; }
+    const { canvas, image } = mirrorElements();
+    if (canvas) canvas.hidden = true;
+    if (image) image.style.display = '';
+}
+
+function handleMirrorDown(event)  { if (mirrorClient) { try { event.currentTarget.setPointerCapture?.(event.pointerId); } catch (_) {} mirrorClient.touchDown(event); } }
+function handleMirrorMove(event)  { if (mirrorClient) mirrorClient.touchMove(event); }
+function handleMirrorUp(event)    { if (mirrorClient) { try { event.currentTarget.releasePointerCapture?.(event.pointerId); } catch (_) {} mirrorClient.touchUp(event); } }
+function handleMirrorWheel(event) { if (mirrorClient) { event.preventDefault(); mirrorClient.wheel(event); } }
 
 function closeScreenViewer() {
     if (screenFrameTimer !== null) window.clearInterval(screenFrameTimer);
@@ -405,6 +470,7 @@ function closeScreenViewer() {
     screenFrameInFlight = false;
     viewedDeviceId = null;
     viewerDragState = null;
+    stopMirror();
 
     document.removeEventListener('keydown', handleViewerKeyDown);
 
@@ -572,6 +638,20 @@ async function handleViewerKeyDown(event) {
 
 async function sendVirtualControl(command, params = {}) {
     if (!viewedDeviceId) return;
+
+    // Con el espejo activo, las teclas van por el socket de control ya abierto
+    // (unos bytes) en vez de arrancar un `adb shell input keyevent`, que medido
+    // en este equipo cuesta ~104 ms por pulsación.
+    if (mirrorClient) {
+        const K = window.MIRROR_KEYCODES || {};
+        const directo = {
+            PRESS_BACK: K.BACK, PRESS_HOME: K.HOME, PRESS_RECENTS: K.APP_SWITCH,
+        }[command];
+        if (directo !== undefined) { mirrorClient.key(directo); return; }
+        if (command === 'INPUT_KEYEVENT' && params.keycode !== undefined) { mirrorClient.key(Number(params.keycode)); return; }
+        if (command === 'TYPE_TEXT' && params.value !== undefined) { mirrorClient.text(params.value); return; }
+    }
+
     try {
         await apiFetch('/devices/batch-command', {
             method: 'POST',
@@ -585,7 +665,9 @@ async function sendVirtualControl(command, params = {}) {
 
 async function sendVirtualText() {
     if (!viewedDeviceId) return;
-    const text = window.prompt('Texto a escribir en el dispositivo:');
+    // window.prompt está desactivado en Electron: devuelve null y aborta el
+    // manejador, así que este botón no hacía nada dentro de la app.
+    const text = await customPrompt('Escribir en el dispositivo', 'Texto que se enviará al campo enfocado del teléfono.');
     if (!text) return;
     await sendVirtualControl('TYPE_TEXT', { value: text });
 }
@@ -1941,4 +2023,96 @@ async function showFleetVlanDevicesModal() {
 function setProxyStatus(html, isError) {
     const el = document.getElementById('pxStatus');
     if (el) { el.innerHTML = html; el.style.color = isError ? '#dc2626' : ''; }
+}
+
+// ==========================================
+// TIKMATRIX PROMPT HANDLERS
+// ==========================================
+// Electron desactiva window.prompt(): los diálogos nativos no aparecen y la
+// llamada aborta el manejador, así que estos botones no hacían nada. Se usa
+// customPrompt(), el modal in-app que ya emplea el resto del panel.
+
+// La selección del panel guarda IDs numéricos (selectedDeviceIds), pero la
+// rotación de proxy se indexa por el serial ADB del teléfono.
+function getSelectedDeviceSerials() {
+    return [...selectedDeviceIds]
+        .map(id => devices.find(d => d.id === id))
+        .map(d => d && (d.adb_serial || d.serial_number))
+        .filter(Boolean);
+}
+
+async function promptTikMatrixSetText() {
+    const text = await customPrompt('Inyectar texto', 'Texto a escribir en los dispositivos seleccionados (TikMatrix ADB_SET_TEXT).');
+    if (text === null || text === undefined) return;
+    quickAction('TIKMATRIX_SET_TEXT', { text });
+}
+
+async function promptTikMatrixSimulateTyping() {
+    const text = await customPrompt('Tipeo humano simulado', 'Texto para escribir con retardos aleatorios (TikMatrix ADB_SIMULATE_TYPING).');
+    if (text === null || text === undefined) return;
+    quickAction('TIKMATRIX_SIMULATE_TYPING', { text });
+}
+
+async function promptTikMatrixComment() {
+    const comment = await customPrompt('Comentar publicación', 'Comentario a publicar en el vídeo que está en pantalla.');
+    if (!comment) return;
+    quickAction('TIKMATRIX_COMMENT_FEED', { comment });
+}
+
+async function promptTikMatrixPostVideo() {
+    const caption = await customPrompt('Publicar vídeo', 'Pie de foto y hashtags para la publicación.', '', '#fyp #viral');
+    if (!caption) return;
+    quickAction('TIKMATRIX_POST_VIDEO', { caption });
+}
+
+async function promptTikMatrixFollowUser() {
+    const username = await customPrompt('Seguir usuario', 'Nombre de usuario de TikTok a buscar y seguir.', '', '@usuario');
+    if (!username) return;
+    quickAction('TIKMATRIX_FOLLOW_USER', { username });
+}
+
+async function promptTikMatrixSendDM() {
+    const username = await customPrompt('Mensaje directo', 'Usuario de destino del DM.', '', '@usuario');
+    if (!username) return;
+    const message = await customPrompt('Mensaje directo', `Mensaje privado a enviar a ${username}.`);
+    if (!message) return;
+    quickAction('TIKMATRIX_SEND_DM', { username, message });
+}
+
+async function promptConfigureProxyRotation() {
+    const selected = getSelectedDeviceSerials();
+    if (!selected.length) {
+        alert('Selecciona al menos un dispositivo para configurar la rotación de proxy.');
+        return;
+    }
+
+    const rotation_url = await customPrompt('Rotación de proxy',
+        'URL de rotación/refresco de IP que te dio tu proveedor de proxy.', '', 'https://...');
+    if (!rotation_url) return;
+
+    const waitStr = await customPrompt('Rotación de proxy',
+        'Segundos a esperar tras rotar antes de lanzar tareas.', '30');
+    if (waitStr === null) return;
+    const coolStr = await customPrompt('Rotación de proxy',
+        'Enfriamiento mínimo entre dos rotaciones, en segundos (0 = rotar siempre).', '30');
+    if (coolStr === null) return;
+
+    // Sin el fallback, un campo vacío o no numérico guardaba NaN en la BD.
+    const wait_secs = Number.isFinite(parseInt(waitStr, 10)) ? parseInt(waitStr, 10) : 30;
+    const cooldown_secs = Number.isFinite(parseInt(coolStr, 10)) ? parseInt(coolStr, 10) : 30;
+
+    let count = 0;
+    for (const device_serial of selected) {
+        try {
+            await apiFetch('/proxy_rotation', {
+                method: 'POST',
+                body: JSON.stringify({ device_serial, rotation_url, method: 'GET', wait_secs, cooldown_secs })
+            });
+            count++;
+        } catch (e) {
+            console.error('Error guardando proxy rotation para', device_serial, e);
+        }
+    }
+    addLog(`Rotación de proxy configurada en ${count}/${selected.length} dispositivos`, count ? 'info' : 'error');
+    alert(`Configuración de rotación de proxy guardada para ${count} dispositivos.`);
 }

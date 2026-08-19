@@ -9,6 +9,7 @@ const fs = require('fs');
 const net = require('net');
 const maintenance = require('./maintenance');
 const tikmatrix = require('./tikmatrix');
+const agent = require('./agent');
 let settings = null; try { settings = require('../server/settings'); } catch (_) {}
 const HJ = (x, y) => settings ? settings.jitterXY(x, y) : { x, y };
 const HD = (ms) => settings ? settings.varyDuration(ms) : ms;
@@ -335,7 +336,16 @@ function resolveApkTarget(input) {
 }
 
 // ---------- traductor de comandos ----------
+// Lee la jerarquía de la pantalla. Primero por el agente del dispositivo, que es
+// el único camino fiable: `uiautomator dump` se ejecuta desde el PC y en estos
+// teléfonos lo mata el sistema ("Killed", sin escribir el XML), sobre todo con
+// TikTok delante, donde además el feed nunca queda "idle".
 async function dumpUi(serial) {
+  try {
+    const xml = await agent.dump(serial);
+    if (xml && xml.length > 100) return xml;
+  } catch (_) { /* sin agente: se intenta el volcado clásico */ }
+
   await shell(serial, ['uiautomator', 'dump', '/sdcard/mcp_ui.xml']).catch(() => {});
   return shell(serial, ['cat', '/sdcard/mcp_ui.xml']).catch(() => '');
 }
@@ -1438,6 +1448,7 @@ function start(config) {
   CONFIG = Object.assign(CONFIG, config);
   needsInitialReconciliation = true;
   console.log(`[adb] usando adb: ${resolveAdb()}`);
+  agent.init({ adbResolver: resolveAdb });
   poll();
   pollTimer = setInterval(poll, 1500);
 }

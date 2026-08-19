@@ -185,10 +185,17 @@ function makeUi(ctx, serial) {
 
   const dump = async () => nodes(await dumpUi(serial).catch(() => ''));
 
+  // Comparación deliberadamente estricta con las etiquetas cortas. Con un
+  // `includes` suelto, la etiqueta "Ad" casaba con "añadir", "cargando" o
+  // "descargar", y el warmup daba por anuncio TODO vídeo: 30 saltados, 0 vistos.
   const matches = (n, labels) => labels.some(l => {
-    const needle = l.toLowerCase();
-    return n.text.toLowerCase() === needle || n.desc.toLowerCase() === needle ||
-           n.text.toLowerCase().startsWith(needle) || n.desc.toLowerCase().includes(needle);
+    const needle = l.toLowerCase().trim();
+    const t = (n.text || '').toLowerCase().trim();
+    const d = (n.desc || '').toLowerCase().trim();
+    if (!needle) return false;
+    if (t === needle || d === needle) return true;
+    if (needle.length < 5) return false;          // etiquetas cortas: solo igualdad exacta
+    return t.startsWith(needle) || d.startsWith(needle) || d.includes(needle);
   });
 
   const findAll = (ns, labels) => ns.filter(n => n.bounds && matches(n, labels));

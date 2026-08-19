@@ -47,13 +47,19 @@
                                 <button class="sub-tab active" onclick="switchActionSubTab('general', this)">General</button>
                                 <button class="sub-tab" onclick="switchActionSubTab('adb', this)">Comandos ADB</button>
                                 <button class="sub-tab" onclick="switchActionSubTab('scripts', this)">Rutinas</button>
-                                <button class="sub-tab" onclick="switchActionSubTab('tikmatrix', this)">TikMatrix</button>
+                                <button class="sub-tab" onclick="switchActionSubTab('tiktok', this)">TikTok</button>
+                                <button class="sub-tab" onclick="switchActionSubTab('spotify', this)">Spotify</button>
+                                <button class="sub-tab" onclick="switchActionSubTab('twitch', this)">Twitch</button>
                                 <button class="sub-tab" onclick="switchActionSubTab('fleet', this)">Fleet Router</button>
                                 <button class="sub-tab" onclick="switchActionSubTab('hermes', this)">Hermes</button>
                             </div>
 
                             <!-- Acciones sobre los dispositivos SELECCIONADOS -->
                             <div id="actionSubTab-general" class="action-buttons-grid">
+                                <!-- El agente vive en el teléfono y es lo que permite leer la pantalla:
+                                     sin él los scripts no encuentran los controles. Va aquí, en General,
+                                     porque es preparación del dispositivo y no algo de una app concreta. -->
+                                <button class="action-btn" style="grid-column: 1 / -1; font-weight: 700; background: #0f172a; color:#fff; border: 1px solid #334155; padding: 10px; font-size:13px;" onclick="quickAction('INSTALL_AGENT')" title="Instala el Agente Bsolutions en los teléfonos seleccionados, junto con el lector de pantalla y el teclado rápido">🤖 Instalar Agente Bsolutions</button>
                                 <button class="action-btn purple" style="grid-column: 1 / -1; background: #4f46e5; font-size: 13px; font-weight: 700; padding: 10px;" onclick="promptPlayCustomTrackUrl()" title="Abre Spotify/YouTube y reproduce la canción del enlace que pegues, en los dispositivos seleccionados">🎧 Reproducir canción por enlace ▾</button>
                                 <button class="action-btn purple" onclick="promptOpenApp()" title="Abre una app por su nombre de paquete (ej. com.spotify.music)">🎵 Abrir app ▾</button>
                                 <button class="action-btn purple" onclick="promptCloseApp()" title="Fuerza el cierre de una app por su nombre de paquete">🚪 Cerrar app ▾</button>
@@ -94,10 +100,10 @@
                             </div>
 
                             <!-- TikMatrix Automation Suite -->
-                            <div id="actionSubTab-tikmatrix" class="action-buttons-grid" style="display:none;">
-                                <!-- SCRIPTS — mismo conjunto, orden y colores que el panel Scripts de TikMatrix.
-                                     Las etiquetas van en inglés a propósito, para que se correspondan una a una
-                                     con las de la app original y su documentación. -->
+                            <div id="actionSubTab-tiktok" class="action-buttons-grid" style="display:none;">
+                                <!-- SCRIPTS DE TIKTOK — mismo conjunto, orden y colores que el panel Scripts
+                                     de TikMatrix, que es la app de referencia. Las etiquetas van en inglés
+                                     a propósito, para corresponderse una a una con su documentación. -->
                                 <div class="tm-pills">
                                     <button class="tm-pill" onclick="abrirScriptTikMatrix('TIKMATRIX_LOGIN')" title="Inicia sesión con email o usuario; admite contraseña:secreto_2fa">🔑 Login</button>
                                     <button class="tm-pill" onclick="abrirScriptTikMatrix('TIKMATRIX_FILL_PROFILE')" title="Apodo, nombre de usuario, biografía y avatar">👤 Fill Profile</button>
@@ -130,7 +136,6 @@
 
                                 <!-- Comandos ADB sueltos: no son scripts, son acciones de una sola pulsación. -->
                                 <div class="tm-sep">Comandos directos</div>
-                                <button class="action-btn" style="grid-column: 1 / -1; font-weight: 700; background: #000; color:#fff; border: 1px solid #333; padding: 10px; font-size:13px;" onclick="quickAction('TIKMATRIX_INSTALL_AGENT')" title="Instala los APKs auxiliares com.github.tikmatrix y el teclado FastInputIME en los teléfonos">📱 Instalar Agente TikMatrix &amp; FastInputIME</button>
                                 <button class="action-btn blue" onclick="quickAction('TIKMATRIX_OPEN_TIKTOK')" title="Abre la app de TikTok (Musically/Aweme) directamente en el feed principal">🎵 Abrir TikTok</button>
                                 <button class="action-btn blue" onclick="quickAction('TIKMATRIX_BROWSE_FEED', { count: 5 })" title="Desliza orgánicamente por 5 videos del feed con pausas humanas">👀 Navegar Feed</button>
                                 <button class="action-btn blue" onclick="quickAction('TIKMATRIX_LIKE_FEED')" title="Envía Me Gusta (doble toque) a la publicación en pantalla">❤️ Dar Me Gusta</button>
@@ -147,6 +152,54 @@
                                 <button class="action-btn blue" onclick="promptConfigureProxyRotation()" title="Configura la URL de refresco/rotación de IP para los dispositivos">🔄 Configurar Rotación Proxy</button>
                                 <button class="action-btn blue" onclick="quickAction('TIKMATRIX_ROTATE_PROXY')" title="Solicita una nueva IP llamando a la URL de rotación configurada">🌐 Rotar IP ahora</button>
                                 <button class="action-btn" style="grid-column: 1 / -1; background:#b91c1c; color:#fff; font-weight:700;" onclick="quickAction('TIKMATRIX_CLEAR_DCIM')" title="Limpia las imágenes y vídeos procesados de la galería DCIM y tarjeta SD">🗑️ Limpiar fotos y vídeos DCIM</button>
+                            </div>
+
+                            <!-- SCRIPTS DE SPOTIFY -->
+                            <div id="actionSubTab-spotify" class="action-buttons-grid" style="display:none;">
+                                <div class="tm-pills">
+                                    <button class="tm-pill tm-spotify" onclick="abrirScriptTikMatrix('SPOTIFY_LOGIN')" title="Entra con correo o usuario y contraseña">🔑 Login</button>
+                                    <button class="tm-pill tm-spotify" onclick="abrirScriptTikMatrix('SPOTIFY_MATCH_ACCOUNT')" title="Lee la cuenta con la sesión iniciada">👥 Match Account</button>
+                                    <button class="tm-pill tm-spotify" onclick="abrirScriptTikMatrix('SPOTIFY_PLAY_URL')" title="Abre un enlace de Spotify y lo reproduce">▶️ Play URL</button>
+                                    <button class="tm-pill tm-spotify" onclick="abrirScriptTikMatrix('SPOTIFY_SEARCH_PLAY')" title="Busca y reproduce el primer resultado">🔎 Search &amp; Play</button>
+                                    <button class="tm-pill tm-spotify" onclick="abrirScriptTikMatrix('SPOTIFY_WARMUP')" title="Escucha desde la portada con probabilidades de guardar, seguir y saltar">🔥 Warmup</button>
+                                    <button class="tm-pill tm-spotify" onclick="abrirScriptTikMatrix('SPOTIFY_FOLLOW_ARTIST')" title="Sigue artistas por nombre o enlace">✅ Follow Artist</button>
+                                    <button class="tm-pill tm-spotify" onclick="abrirScriptTikMatrix('SPOTIFY_SAVE_TRACK')" title="Guarda una pista en Tus me gusta">💚 Save Track</button>
+                                    <button class="tm-pill tm-spotify" onclick="abrirScriptTikMatrix('SPOTIFY_CREATE_PLAYLIST')" title="Crea una playlist nueva">➕ Create Playlist</button>
+                                    <button class="tm-pill tm-spotify" onclick="abrirScriptTikMatrix('SPOTIFY_ADD_TO_PLAYLIST')" title="Agrega una pista a una playlist existente">📃 Add to Playlist</button>
+                                    <button class="tm-pill tm-spotify" onclick="abrirScriptTikMatrix('SPOTIFY_PLAYBACK')" title="Reproducir, pausar, siguiente, aleatorio, repetir">🎛️ Playback</button>
+                                    <button class="tm-pill tm-green" onclick="abrirScriptTikMatrix('SPOTIFY_STREAM_CAMPAIGN')" title="Recorre una lista de enlaces reproduciendo cada uno">🚀 Stream Campaign</button>
+                                    <button class="tm-pill tm-amber" onclick="abrirScriptTikMatrix('SPOTIFY_TEST_SCRIPT')" title="Comprueba sin efectos: app, lectura de pantalla, sesión y pista">🧪 Test Script</button>
+                                    <button class="tm-pill tm-red" onclick="detenerTareasTikMatrix('com.spotify.music')" title="Cancela las tareas en curso y cierra Spotify">⏹️ Stop Task</button>
+                                </div>
+
+                                <div class="tm-sep">Comandos directos</div>
+                                <button class="action-btn blue" onclick="quickAction('OPEN_APP', { packageName: 'com.spotify.music', package_name: 'com.spotify.music' })" title="Abre Spotify en los dispositivos seleccionados">🎧 Abrir Spotify</button>
+                                <button class="action-btn blue" onclick="quickAction('SPOTIFY_PLAYBACK', { action: 'pause' })" title="Pausa lo que esté sonando">⏸️ Pausar</button>
+                                <button class="action-btn blue" onclick="quickAction('SPOTIFY_PLAYBACK', { action: 'next' })" title="Salta a la siguiente pista">⏭️ Siguiente</button>
+                                <button class="action-btn blue" onclick="quickAction('FORCE_STOP', { package_name: 'com.spotify.music' })" title="Cierra Spotify por completo">🚪 Cerrar Spotify</button>
+                            </div>
+
+                            <!-- SCRIPTS DE TWITCH -->
+                            <div id="actionSubTab-twitch" class="action-buttons-grid" style="display:none;">
+                                <div class="tm-pills">
+                                    <button class="tm-pill tm-twitch" onclick="abrirScriptTikMatrix('TWITCH_LOGIN')" title="Entra con usuario y contraseña">🔑 Login</button>
+                                    <button class="tm-pill tm-twitch" onclick="abrirScriptTikMatrix('TWITCH_MATCH_ACCOUNT')" title="Lee la cuenta con la sesión iniciada">👥 Match Account</button>
+                                    <button class="tm-pill tm-twitch" onclick="abrirScriptTikMatrix('TWITCH_WATCH_STREAM')" title="Abre un canal y lo ve el tiempo indicado">📺 Watch Stream</button>
+                                    <button class="tm-pill tm-twitch" onclick="abrirScriptTikMatrix('TWITCH_WARMUP')" title="Recorre el feed de descubrimiento viendo streams">🔥 Warmup</button>
+                                    <button class="tm-pill tm-twitch" onclick="abrirScriptTikMatrix('TWITCH_FOLLOW_CHANNEL')" title="Sigue una lista de canales">✅ Follow Channel</button>
+                                    <button class="tm-pill tm-twitch" onclick="abrirScriptTikMatrix('TWITCH_UNFOLLOW_CHANNEL')" title="Deja de seguir una lista de canales">🚫 Unfollow Channel</button>
+                                    <button class="tm-pill tm-twitch" onclick="abrirScriptTikMatrix('TWITCH_CHAT_MESSAGE')" title="Escribe en el chat de un canal">💬 Chat Message</button>
+                                    <button class="tm-pill tm-twitch" onclick="abrirScriptTikMatrix('TWITCH_PLAYBACK')" title="Sonido, compartir y menú del reproductor">🎛️ Playback</button>
+                                    <button class="tm-pill tm-green" onclick="abrirScriptTikMatrix('TWITCH_WATCH_CAMPAIGN')" title="Recorre una lista de canales viendo cada uno">🚀 Watch Campaign</button>
+                                    <button class="tm-pill tm-amber" onclick="abrirScriptTikMatrix('TWITCH_TEST_SCRIPT')" title="Comprueba sin efectos: app, lectura de pantalla, sesión y directo">🧪 Test Script</button>
+                                    <button class="tm-pill tm-red" onclick="detenerTareasTikMatrix('tv.twitch.android.app')" title="Cancela las tareas en curso y cierra Twitch">⏹️ Stop Task</button>
+                                </div>
+
+                                <div class="tm-sep">Comandos directos</div>
+                                <button class="action-btn blue" onclick="quickAction('OPEN_APP', { packageName: 'tv.twitch.android.app', package_name: 'tv.twitch.android.app' })" title="Abre Twitch en los dispositivos seleccionados">📺 Abrir Twitch</button>
+                                <button class="action-btn blue" onclick="quickAction('TWITCH_PLAYBACK', { action: 'unmute' })" title="Activa el sonido del stream">🔊 Activar sonido</button>
+                                <button class="action-btn blue" onclick="quickAction('TWITCH_PLAYBACK', { action: 'mute' })" title="Silencia el stream">🔇 Silenciar</button>
+                                <button class="action-btn blue" onclick="quickAction('FORCE_STOP', { package_name: 'tv.twitch.android.app' })" title="Cierra Twitch por completo">🚪 Cerrar Twitch</button>
                             </div>
 
                             <!-- Fleet Router & Xpace Integration -->
@@ -335,6 +388,8 @@
         .tm-amber { background: #f59e0b; }
         .tm-red   { background: #f87171; }
         .tm-ghost { background: #6366f1; opacity: .85; font-weight: 500; }
+        .tm-spotify { background: #1db954; }   /* verde Spotify */
+        .tm-twitch  { background: #9146ff; }   /* morado Twitch  */
         .tm-sep {
             grid-column: 1 / -1; margin-top: 12px; font-size: 11px; font-weight: 700;
             color: #64748b; text-transform: uppercase; letter-spacing: .06em;
@@ -343,7 +398,7 @@
 
     <script src="/dashboard/js/mirror-client.js?v=20260819-v2"></script>
     <script src="/dashboard/js/dashboard.js?v=20260725-v8"></script>
-    <script src="/dashboard/js/tikmatrix-ui.js?v=20260819-v2"></script>
+    <script src="/dashboard/js/tikmatrix-ui.js?v=20260819-v3"></script>
     <script src="/dashboard/js/routines.js?v=20260725-v8"></script>
     <script src="/dashboard/js/monitor-ui.js?v=20260725-v6"></script>
     <script src="/dashboard/js/views-ui.js?v=20260725-v7"></script>

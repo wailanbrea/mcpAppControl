@@ -75,58 +75,11 @@ const COMMANDS = new Set([
 function handles(command) { return COMMANDS.has(command); }
 
 // ---------------------------------------------------------------- utilidades
+// Las primitivas de UI y las utilidades de plantillas viven en ui-kit.js, que
+// comparten esta suite y la de Spotify.
 
-const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-
-// Spintax: "Hola {mundo|gente|a todos}" -> una variante al azar. Anidado incluido.
-function spin(text) {
-  let out = String(text ?? '');
-  let guard = 0;
-  while (/\{[^{}]*\|[^{}]*\}/.test(out) && guard++ < 50) {
-    out = out.replace(/\{([^{}]*\|[^{}]*)\}/, (_, body) => {
-      const parts = body.split('|');
-      return parts[Math.floor(Math.random() * parts.length)];
-    });
-  }
-  return out;
-}
-
-// Normaliza una lista que puede llegar como array o como texto multilínea.
-function toList(value) {
-  if (Array.isArray(value)) return value.map(v => String(v).trim()).filter(Boolean);
-  return String(value ?? '').split(/\r?\n/).map(v => v.trim()).filter(Boolean);
-}
-
-// Selección de plantilla: 'random' o 'sequential' (la doc expone ambos modos).
-function pickTemplate(list, order, index) {
-  if (!list.length) return '';
-  if (order === 'sequential') return list[index % list.length];
-  return list[Math.floor(Math.random() * list.length)];
-}
-
-// Sustituye los placeholders documentados en Mass DM.
-function fillVars(text, vars) {
-  return String(text ?? '')
-    .replace(/\{username\}/gi, vars.username || '')
-    .replace(/\{sender_username\}/gi, vars.sender_username || '');
-}
-
-function decorate(text, { insert_emoji } = {}) {
-  const t = spin(text);
-  if (!insert_emoji) return t;
-  return `${t} ${EMOJIS[Math.floor(Math.random() * EMOJIS.length)]}`;
-}
-
-// "1.2K", "3,4 M", "890" -> número. Lo usan Delete Posts y Privacy Settings para
-// filtrar por vistas.
-function parseCount(raw) {
-  const m = String(raw ?? '').replace(/\s+/g, '').match(/([\d.,]+)\s*([KMB])?/i);
-  if (!m) return null;
-  const n = parseFloat(m[1].replace(/,/g, '.'));
-  if (!Number.isFinite(n)) return null;
-  const mult = { K: 1e3, M: 1e6, B: 1e9 }[(m[2] || '').toUpperCase()] || 1;
-  return Math.round(n * mult);
-}
+const K = require('./ui-kit');
+const { randInt, spin, toList, pickTemplate, fillVars, decorate, parseCount } = K;
 
 function pkgFor(p) {
   if (p.package_name) return String(p.package_name);
@@ -135,105 +88,12 @@ function pkgFor(p) {
 }
 
 // ------------------------------------------------- primitivas de UI sobre ctx
+// Extiende el kit común con los gestos propios de un feed vertical de vídeo.
 
 function makeUi(ctx, serial) {
-  const { shell, sleep, dumpUi, live, HJ, HD } = ctx;
-
-  const size = () => {
-    const d = live.get(serial);
-    return { w: d?.size?.w || 1080, h: d?.size?.h || 2400 };
-  };
-
-  const tapXY = async (x, y) => {
-    const j = HJ(Math.round(x), Math.round(y));
-    await shell(serial, ['input', 'tap', String(j.x), String(j.y)]);
-  };
-
-  const swipe = async (x1, y1, x2, y2, ms) => {
-    await shell(serial, ['input', 'swipe', String(Math.round(x1)), String(Math.round(y1)),
-      String(Math.round(x2)), String(Math.round(y2)), String(HD(ms))]);
-  };
-
-  const back = () => shell(serial, ['input', 'keyevent', '4']).catch(() => {});
-  const enter = () => shell(serial, ['input', 'keyevent', '66']).catch(() => {});
-
-  // Devuelve TODOS los nodos que casan, no solo el primero: Follow Suggested y
-  // Scrape Users necesitan recorrer la pantalla entera.
-  const nodes = (xml) => {
-    const out = [];
-    const re = /<node\b([^>]*)>/g;
-    let m;
-    while ((m = re.exec(xml)) !== null) {
-      const attrs = m[1];
-      const g = (name) => {
-        const mm = attrs.match(new RegExp(`\\b${name}="([^"]*)"`));
-        return mm ? mm[1] : '';
-      };
-      const b = attrs.match(/bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/);
-      out.push({
-        text: g('text'),
-        desc: g('content-desc'),
-        id: g('resource-id'),
-        clickable: g('clickable') === 'true',
-        bounds: b ? { x1: +b[1], y1: +b[2], x2: +b[3], y2: +b[4] } : null,
-        cx: b ? Math.round((+b[1] + +b[3]) / 2) : 0,
-        cy: b ? Math.round((+b[2] + +b[4]) / 2) : 0,
-      });
-    }
-    return out;
-  };
-
-  const dump = async () => nodes(await dumpUi(serial).catch(() => ''));
-
-  // Comparación deliberadamente estricta con las etiquetas cortas. Con un
-  // `includes` suelto, la etiqueta "Ad" casaba con "añadir", "cargando" o
-  // "descargar", y el warmup daba por anuncio TODO vídeo: 30 saltados, 0 vistos.
-  const matches = (n, labels) => labels.some(l => {
-    const needle = l.toLowerCase().trim();
-    const t = (n.text || '').toLowerCase().trim();
-    const d = (n.desc || '').toLowerCase().trim();
-    if (!needle) return false;
-    if (t === needle || d === needle) return true;
-    if (needle.length < 5) return false;          // etiquetas cortas: solo igualdad exacta
-    return t.startsWith(needle) || d.startsWith(needle) || d.includes(needle);
-  });
-
-  const findAll = (ns, labels) => ns.filter(n => n.bounds && matches(n, labels));
-  const find = (ns, labels) => findAll(ns, labels)[0] || null;
-
-  // Pulsa el primer control que case con cualquiera de las etiquetas.
-  const tapAny = async (labels, { ns } = {}) => {
-    const list = ns || await dump();
-    const n = find(list, labels);
-    if (!n) return false;
-    await tapXY(n.cx, n.cy);
-    return true;
-  };
-
-  // Cierra los diálogos que TikTok interpone (permisos, "Ahora no", cookies…).
-  const dismissPopups = async () => {
-    const ns = await dump();
-    const n = find(ns, L.dismiss);
-    if (!n) return false;
-    await tapXY(n.cx, n.cy);
-    await sleep(600);
-    return true;
-  };
-
-  // Texto vía el IME de TikMatrix si está instalado; si no, input text.
-  const type = async (value) => {
-    const v = String(value ?? '');
-    const ok = await shell(serial, ['am', 'broadcast', '-a', 'ADB_SET_TEXT', '--es', 'text', v])
-      .then(out => /result=-1|Broadcast completed/i.test(String(out || '')))
-      .catch(() => false);
-    if (!ok) await shell(serial, ['input', 'text', v.replace(/ /g, '%s')]).catch(() => {});
-  };
-
-  const openApp = async (pkg) => {
-    await shell(serial, ['monkey', '-p', pkg, '-c', 'android.intent.category.LAUNCHER', '1']).catch(() => {});
-    await sleep(3000);
-    await dismissPopups();
-  };
+  const { shell, sleep } = ctx;
+  const base = K.makeUi(ctx, serial);
+  const { size, tapXY, swipe, dump, find, tapAny, type, openApp } = base;
 
   // Abre un perfil por deep link o buscándolo, según el "Profile opening method".
   const openProfile = async (username, method, pkg) => {
@@ -244,7 +104,7 @@ function makeUi(ctx, serial) {
       if (!await tapAny(L.search)) return false;
       await sleep(1200);
       await type(u);
-      await enter();
+      await base.enter();
       await sleep(2500);
       const ns = await dump();
       const hit = ns.find(n => n.bounds && (n.text === u || n.text === `@${u}`));
@@ -254,14 +114,8 @@ function makeUi(ctx, serial) {
     await shell(serial, ['am', 'start', '-a', 'android.intent.action.VIEW',
       '-d', `https://www.tiktok.com/@${u}`, pkg]).catch(() => {});
     await sleep(3500);
-    await dismissPopups();
+    await base.dismissPopups();
     return true;
-  };
-
-  const openUrl = async (url, pkg) => {
-    await shell(serial, ['am', 'start', '-a', 'android.intent.action.VIEW', '-d', String(url), pkg]).catch(() => {});
-    await sleep(3500);
-    await dismissPopups();
   };
 
   // Deslizar al siguiente vídeo del feed.
@@ -271,12 +125,6 @@ function makeUi(ctx, serial) {
     await sleep(randInt(700, 1400));
   };
 
-  const scrollList = async () => {
-    const { w, h } = size();
-    await swipe(w * 0.5, h * 0.75, w * 0.5, h * 0.35, randInt(240, 400));
-    await sleep(randInt(700, 1200));
-  };
-
   const doubleTapLike = async () => {
     const { w, h } = size();
     await tapXY(w * 0.5, h * 0.5);
@@ -284,10 +132,8 @@ function makeUi(ctx, serial) {
     await tapXY(w * 0.5, h * 0.5);
   };
 
-  return { size, tapXY, swipe, back, enter, dump, find, findAll, matches, tapAny,
-           dismissPopups, type, openApp, openProfile, openUrl, nextVideo, scrollList, doubleTapLike };
+  return { ...base, openProfile, nextVideo, doubleTapLike };
 }
-
 // ------------------------------------------------------------------- scripts
 
 // Account Warmup: navega el feed y engancha con probabilidades configurables.
@@ -1268,10 +1114,12 @@ async function testScript(ctx, serial, p, ui) {
   const paquetes = String(await ctx.shell(serial, ['pm', 'list', 'packages']).catch(() => ''));
   informe.app_instalada = paquetes.includes(pkg);
 
+  const nodos = await ui.dump();
+
+  // Después del volcado: es entonces cuando se conoce el espacio de coordenadas
+  // real, que no coincide con el tamaño registrado del dispositivo.
   const { w, h } = ui.size();
   informe.resolucion = `${w}x${h}`;
-
-  const nodos = await ui.dump();
   informe.nodos_ui = nodos.length;
   informe.uiautomator = nodos.length > 0;
 

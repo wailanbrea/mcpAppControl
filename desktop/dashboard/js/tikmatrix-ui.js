@@ -230,21 +230,216 @@ const TIKMATRIX_SCRIPTS = {
             { k: 'clone_prefix', t: 'text', label: 'Prefijo de clones', placeholder: 'ej. com.miclon.' },
         ],
     },
+
+    // ---------------------------------------------------------------- SPOTIFY
+    SPOTIFY_LOGIN: {
+        titulo: 'Login', app: 'spotify',
+        descripcion: 'Entra con correo o usuario y contraseña.',
+        campos: [
+            { k: 'email', t: 'text', label: 'Correo o usuario' },
+            { k: 'password', t: 'text', label: 'Contraseña' },
+        ],
+    },
+    SPOTIFY_MATCH_ACCOUNT: {
+        titulo: 'Match Account', app: 'spotify',
+        descripcion: 'Lee la cuenta con la que está iniciada la sesión.',
+        campos: [],
+    },
+    SPOTIFY_PLAY_URL: {
+        titulo: 'Play URL', app: 'spotify',
+        descripcion: 'Abre un enlace de Spotify y lo reproduce. Acepta URL, URI spotify: o el id de 22 caracteres.',
+        campos: [
+            { k: 'url', t: 'text', label: 'Enlace o id', placeholder: 'https://open.spotify.com/track/…' },
+            { k: 'tipo', t: 'select', label: 'Tipo (para ids sueltos)', opciones: [['track', 'Canción'], ['album', 'Álbum'], ['playlist', 'Playlist'], ['artist', 'Artista']], def: 'track' },
+            { k: 'play_seconds', t: 'num', label: 'Segundos de reproducción', def: 45 },
+            { k: 'shuffle', t: 'bool', label: 'Reproducción aleatoria' },
+            { k: 'pause_after', t: 'bool', label: 'Pausar al terminar' },
+        ],
+    },
+    SPOTIFY_SEARCH_PLAY: {
+        titulo: 'Search & Play', app: 'spotify',
+        descripcion: 'Busca y reproduce el primer resultado.',
+        campos: [
+            { k: 'query', t: 'text', label: 'Búsqueda', placeholder: 'artista, canción…' },
+            { k: 'play_seconds', t: 'num', label: 'Segundos de reproducción', def: 45 },
+            { k: 'solo_canciones', t: 'bool', label: 'Filtrar solo canciones', def: true },
+        ],
+    },
+    SPOTIFY_STREAM_CAMPAIGN: {
+        titulo: 'Stream Campaign', app: 'spotify',
+        descripcion: 'Recorre una lista de enlaces reproduciendo cada uno, con duración y huecos aleatorios.',
+        peligro: true,
+        campos: [
+            { k: 'urls', t: 'lista', label: 'Enlaces', placeholder: 'uno por línea' },
+            { k: 'repeat', t: 'num', label: 'Pasadas', def: 1 },
+            { k: 'play_min_sec', t: 'num', label: 'Reproducir desde (s)', def: 35 },
+            { k: 'play_max_sec', t: 'num', label: 'Reproducir hasta (s)', def: 70 },
+            { k: 'gap_min_sec', t: 'num', label: 'Hueco mínimo (s)', def: 3 },
+            { k: 'gap_max_sec', t: 'num', label: 'Hueco máximo (s)', def: 12 },
+            { k: 'order', t: 'select', label: 'Orden', opciones: [['sequential', 'Secuencial'], ['random', 'Aleatorio']], def: 'sequential' },
+            { k: 'save_track', t: 'bool', label: 'Guardar en Tus me gusta' },
+        ],
+    },
+    SPOTIFY_WARMUP: {
+        titulo: 'Warmup', app: 'spotify',
+        descripcion: 'Escucha desde la portada entrando en elementos al azar, con probabilidad de guardar, seguir o saltar.',
+        campos: [
+            { k: 'duration_min', t: 'num', label: 'Duración total (min)', def: 10 },
+            { k: 'play_min_sec', t: 'num', label: 'Escuchar desde (s)', def: 30 },
+            { k: 'play_max_sec', t: 'num', label: 'Escuchar hasta (s)', def: 90 },
+            { k: 'p_save', t: 'num', label: 'Probabilidad de guardar (0-1)', def: 0.10, step: 0.05 },
+            { k: 'p_follow', t: 'num', label: 'Probabilidad de seguir (0-1)', def: 0.05, step: 0.05 },
+            { k: 'p_skip', t: 'num', label: 'Probabilidad de saltar (0-1)', def: 0.20, step: 0.05 },
+        ],
+    },
+    SPOTIFY_FOLLOW_ARTIST: {
+        titulo: 'Follow Artist', app: 'spotify',
+        descripcion: 'Sigue artistas por nombre o por enlace. Los que ya sigues se dejan intactos.',
+        campos: [{ k: 'artists', t: 'lista', label: 'Artistas', placeholder: 'nombre o enlace, uno por línea' }],
+    },
+    SPOTIFY_SAVE_TRACK: {
+        titulo: 'Save Track', app: 'spotify',
+        descripcion: 'Guarda en Tus me gusta la pista indicada, o la que esté sonando si no pones enlace.',
+        campos: [{ k: 'url', t: 'text', label: 'Enlace de la pista (opcional)' }],
+    },
+    SPOTIFY_CREATE_PLAYLIST: {
+        titulo: 'Create Playlist', app: 'spotify',
+        descripcion: 'Crea una playlist nueva. Admite spintax en el nombre.',
+        campos: [{ k: 'name', t: 'text', label: 'Nombre', placeholder: 'Mi {mix|lista} {2026|nueva}' }],
+    },
+    SPOTIFY_ADD_TO_PLAYLIST: {
+        titulo: 'Add to Playlist', app: 'spotify',
+        descripcion: 'Agrega una pista a una playlist existente.',
+        campos: [
+            { k: 'playlist', t: 'text', label: 'Playlist destino' },
+            { k: 'url', t: 'text', label: 'Enlace de la pista (opcional)' },
+        ],
+    },
+    SPOTIFY_PLAYBACK: {
+        titulo: 'Playback', app: 'spotify',
+        descripcion: 'Controles de reproducción sobre lo que esté sonando.',
+        campos: [
+            { k: 'action', t: 'select', label: 'Acción', opciones: [['play', 'Reproducir'], ['pause', 'Pausar'], ['next', 'Siguiente'], ['previous', 'Anterior'], ['shuffle', 'Aleatorio'], ['repeat', 'Repetir'], ['save', 'Me gusta']], def: 'play' },
+            { k: 'times', t: 'num', label: 'Veces', def: 1 },
+        ],
+    },
+    SPOTIFY_TEST_SCRIPT: {
+        titulo: 'Test Script', app: 'spotify',
+        descripcion: 'Comprueba sin efectos: app instalada, lectura de pantalla, sesión y pista en curso.',
+        campos: [],
+    },
+
+    // ----------------------------------------------------------------- TWITCH
+    TWITCH_LOGIN: {
+        titulo: 'Login', app: 'twitch',
+        descripcion: 'Entra con usuario y contraseña.',
+        campos: [
+            { k: 'username', t: 'text', label: 'Usuario o correo' },
+            { k: 'password', t: 'text', label: 'Contraseña' },
+        ],
+    },
+    TWITCH_MATCH_ACCOUNT: {
+        titulo: 'Match Account', app: 'twitch',
+        descripcion: 'Lee la cuenta con la que está iniciada la sesión.',
+        campos: [],
+    },
+    TWITCH_WATCH_STREAM: {
+        titulo: 'Watch Stream', app: 'twitch',
+        descripcion: 'Abre un canal y lo ve el tiempo indicado, tocando de vez en cuando para no quedar inactivo.',
+        campos: [
+            { k: 'channel', t: 'text', label: 'Canal', placeholder: 'nombre o URL' },
+            { k: 'watch_seconds', t: 'num', label: 'Segundos de visionado', def: 120 },
+            { k: 'unmute', t: 'bool', label: 'Activar sonido' },
+            { k: 'follow', t: 'bool', label: 'Seguir el canal' },
+        ],
+    },
+    TWITCH_WATCH_CAMPAIGN: {
+        titulo: 'Watch Campaign', app: 'twitch',
+        descripcion: 'Recorre una lista de canales viendo cada uno. Los que no estén emitiendo se saltan.',
+        peligro: true,
+        campos: [
+            { k: 'channels', t: 'lista', label: 'Canales', placeholder: 'uno por línea' },
+            { k: 'repeat', t: 'num', label: 'Pasadas', def: 1 },
+            { k: 'watch_min_sec', t: 'num', label: 'Ver desde (s)', def: 90 },
+            { k: 'watch_max_sec', t: 'num', label: 'Ver hasta (s)', def: 240 },
+            { k: 'gap_min_sec', t: 'num', label: 'Hueco mínimo (s)', def: 5 },
+            { k: 'gap_max_sec', t: 'num', label: 'Hueco máximo (s)', def: 20 },
+            { k: 'order', t: 'select', label: 'Orden', opciones: [['sequential', 'Secuencial'], ['random', 'Aleatorio']], def: 'sequential' },
+            { k: 'follow', t: 'bool', label: 'Seguir cada canal' },
+        ],
+    },
+    TWITCH_WARMUP: {
+        titulo: 'Warmup', app: 'twitch',
+        descripcion: 'Recorre el feed de descubrimiento viendo streams, con probabilidad de seguir.',
+        campos: [
+            { k: 'duration_min', t: 'num', label: 'Duración total (min)', def: 10 },
+            { k: 'watch_min_sec', t: 'num', label: 'Ver desde (s)', def: 30 },
+            { k: 'watch_max_sec', t: 'num', label: 'Ver hasta (s)', def: 120 },
+            { k: 'p_follow', t: 'num', label: 'Probabilidad de seguir (0-1)', def: 0.08, step: 0.02 },
+        ],
+    },
+    TWITCH_FOLLOW_CHANNEL: {
+        titulo: 'Follow Channel', app: 'twitch',
+        descripcion: 'Sigue una lista de canales. Los que ya sigues se dejan intactos.',
+        campos: [{ k: 'channels', t: 'lista', label: 'Canales', placeholder: 'uno por línea' }],
+    },
+    TWITCH_UNFOLLOW_CHANNEL: {
+        titulo: 'Unfollow Channel', app: 'twitch',
+        descripcion: 'Deja de seguir una lista de canales.',
+        campos: [{ k: 'channels', t: 'lista', label: 'Canales', placeholder: 'uno por línea' }],
+    },
+    TWITCH_CHAT_MESSAGE: {
+        titulo: 'Chat Message', app: 'twitch',
+        descripcion: 'Escribe en el chat de un canal. Admite spintax y varias plantillas.',
+        peligro: true,
+        campos: [
+            { k: 'channel', t: 'text', label: 'Canal' },
+            { k: 'messages', t: 'lista', label: 'Mensajes', placeholder: 'uno por línea; admite {a|b}' },
+            { k: 'count', t: 'num', label: 'Cuántos enviar', def: 1 },
+            { k: 'order', t: 'select', label: 'Orden', opciones: [['random', 'Aleatorio'], ['sequential', 'Secuencial']], def: 'random' },
+            { k: 'gap_min_sec', t: 'num', label: 'Hueco mínimo (s)', def: 20 },
+            { k: 'gap_max_sec', t: 'num', label: 'Hueco máximo (s)', def: 60 },
+            { k: 'insert_emoji', t: 'bool', label: 'Insertar emoji' },
+        ],
+    },
+    TWITCH_PLAYBACK: {
+        titulo: 'Playback', app: 'twitch',
+        descripcion: 'Controles sobre el reproductor.',
+        campos: [
+            { k: 'action', t: 'select', label: 'Acción', opciones: [['unmute', 'Activar sonido'], ['mute', 'Silenciar'], ['share', 'Compartir'], ['menu', 'Menú']], def: 'unmute' },
+        ],
+    },
+    TWITCH_TEST_SCRIPT: {
+        titulo: 'Test Script', app: 'twitch',
+        descripcion: 'Comprueba sin efectos: app instalada, lectura de pantalla, sesión y si hay directo.',
+        campos: [],
+    },
 };
 
 // Bloque que TikMatrix repite en el diálogo de TODOS sus scripts y que sus
 // páginas de documentación no recogen: rotación de proxy, cierre de la app al
 // terminar, selección de paquete con prefijo de clones e intervalo de tarea.
-const CAMPOS_COMUNES = [
+const COMUNES_BASE = [
     { k: 'rotate_proxy', t: 'bool', label: 'Rotar proxy antes de la tarea' },
     { k: 'close_app_after', t: 'bool', label: 'Cerrar la app al terminar', def: true },
+    { k: 'task_interval_min', t: 'num', label: 'Intervalo de tarea, mínimo (min)', def: 0 },
+    { k: 'task_interval_max', t: 'num', label: 'Intervalo de tarea, máximo (min)', def: 0 },
+];
+
+// La selección de paquete con clones es propia de TikTok: Spotify y Twitch no
+// tienen variantes regionales ni se clonan para multicuenta en esta granja.
+const COMUNES_PAQUETE_TIKTOK = [
     { k: 'pkg_tiktok', t: 'bool', label: 'TikTok Global (com.zhiliaoapp.musically)', def: true },
     { k: 'pkg_tiktok_asia', t: 'bool', label: 'TikTok Asia (com.ss.android.ugc.trill)' },
     { k: 'pkg_instagram', t: 'bool', label: 'Instagram (com.instagram.android)' },
     { k: 'clone_prefix', t: 'text', label: 'Prefijo de apps clonadas', placeholder: 'ej. com.tiktok.clone.' },
-    { k: 'task_interval_min', t: 'num', label: 'Intervalo de tarea, mínimo (min)', def: 0 },
-    { k: 'task_interval_max', t: 'num', label: 'Intervalo de tarea, máximo (min)', def: 0 },
 ];
+
+function comunesDe(comando) {
+    const def = TIKMATRIX_SCRIPTS[comando] || {};
+    const app = def.app || 'tiktok';
+    return app === 'tiktok' ? [...COMUNES_PAQUETE_TIKTOK, ...COMUNES_BASE] : [...COMUNES_BASE];
+}
 
 // Avisos que la app original muestra en scripts concretos.
 const AVISOS = {
@@ -282,7 +477,7 @@ function abrirScriptTikMatrix(comando) {
 
     const propios = renderCampos(def.campos);
     // List Packages ES el selector de paquete, así que no se le añade encima.
-    const comunes = comando === 'TIKMATRIX_LIST_PACKAGES' ? '' : renderCampos(CAMPOS_COMUNES);
+    const comunes = comando === 'TIKMATRIX_LIST_PACKAGES' ? '' : renderCampos(comunesDe(comando));
     const seleccionados = selectedDeviceIds.size || devices.filter(d => ['online', 'busy'].includes(d.status)).length;
 
     document.getElementById('tmScriptTitle').textContent = def.titulo;
@@ -312,7 +507,7 @@ function lanzarScriptTikMatrix() {
     const def = TIKMATRIX_SCRIPTS[comando];
     if (!def) return;
 
-    const campos = comando === 'TIKMATRIX_LIST_PACKAGES' ? def.campos : [...def.campos, ...CAMPOS_COMUNES];
+    const campos = comando === 'TIKMATRIX_LIST_PACKAGES' ? def.campos : [...def.campos, ...comunesDe(comando)];
     const params = {};
     for (const c of campos) {
         const el = document.getElementById(`tmf_${c.k}`);
@@ -341,12 +536,13 @@ function lanzarScriptTikMatrix() {
 // Stop Task no es un comando del teléfono: cancela en el servidor lo que haya en
 // cola o corriendo y luego cierra la app en cada dispositivo, para que un script
 // interrumpido no deje el móvil a medias en una pantalla cualquiera.
-async function detenerTareasTikMatrix() {
+async function detenerTareasTikMatrix(paqueteObjetivo) {
     let ids = [...selectedDeviceIds];
     if (!ids.length) ids = devices.filter(d => ['online', 'busy'].includes(d.status)).map(d => d.id);
     if (!ids.length) { alert('No hay dispositivos a los que parar tareas.'); return; }
 
-    const paquete = document.getElementById('tmf_package_name')?.value || 'com.zhiliaoapp.musically';
+    // Cada pestaña pasa su propia app: parar tareas cierra la que estaba en uso.
+    const paquete = paqueteObjetivo || 'com.zhiliaoapp.musically';
     try {
         const r = await apiFetch('/tasks/stop', {
             method: 'POST',

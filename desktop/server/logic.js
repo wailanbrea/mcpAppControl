@@ -17,7 +17,15 @@ const uuid = () => crypto.randomUUID();
 // Scripts de la suite TikMatrix que son bucles de minutos, no comandos puntuales:
 // con el timeout general de 130s el router abortaba un warmup de 10 minutos a la
 // tercera parte y lo reportaba como fallo mientras el teléfono seguía trabajando.
-const COMANDOS_LARGOS = /^TIKMATRIX_(ACCOUNT_WARMUP|SUPER_MARKETING|BOOST_LIVES|BOOST_POSTS|BOOST_COMMENTS|MASS_DM|MASS_COMMENT|SCRAPE_USERS|DELETE_POSTS|PRIVACY_SETTINGS|FOLLOW_SUGGESTED|FOLLOW_BACK|UNFOLLOW_ALL|PUBLISH_POST|LOGIN)$/;
+const COMANDOS_LARGOS = new RegExp(
+  '^(' +
+  'TIKMATRIX_(ACCOUNT_WARMUP|SUPER_MARKETING|BOOST_LIVES|BOOST_POSTS|BOOST_COMMENTS|MASS_DM|MASS_COMMENT|' +
+             'SCRAPE_USERS|DELETE_POSTS|PRIVACY_SETTINGS|FOLLOW_SUGGESTED|FOLLOW_BACK|UNFOLLOW_ALL|PUBLISH_POST|LOGIN)' +
+  '|' +
+  'SPOTIFY_(WARMUP|STREAM_CAMPAIGN|PLAY_URL|SEARCH_PLAY|FOLLOW_ARTIST|LOGIN)' +
+  '|' +
+  'TWITCH_(WARMUP|WATCH_STREAM|WATCH_CAMPAIGN|FOLLOW_CHANNEL|UNFOLLOW_CHANNEL|CHAT_MESSAGE|LOGIN)' +
+  ')$');
 
 function dispatchTimeout(command) {
   if (/^INSTALL/.test(command)) return 660000;

@@ -10,6 +10,8 @@ const net = require('net');
 const maintenance = require('./maintenance');
 const tikmatrix = require('./tikmatrix');
 const agent = require('./agent');
+const spotify = require('./spotify');
+const twitch = require('./twitch');
 let settings = null; try { settings = require('../server/settings'); } catch (_) {}
 const HJ = (x, y) => settings ? settings.jitterXY(x, y) : { x, y };
 const HD = (ms) => settings ? settings.varyDuration(ms) : ms;
@@ -28,6 +30,11 @@ const live = new Map();       // adbSerial -> { serial, model, release, size:{w,
 const knownTcp = new Map();   // dirección WiFi (ip:puerto) -> ts del último intento de reconexión
 let pollTimer = null;
 let needsInitialReconciliation = true;
+
+// Ruta a un recurso empaquetado (resources/<...>) o su equivalente en desarrollo.
+function app_ruta_recurso(...partes) {
+  return process.resourcesPath ? path.join(process.resourcesPath, ...partes) : null;
+}
 
 // ---------- localizar adb.exe ----------
 function resolveAdb() {
@@ -375,18 +382,34 @@ async function tapId(serial, id) {
   return { success: true, message: `Tap en id '${id}'` };
 }
 
-// Contexto que la suite de scripts TikMatrix reutiliza: misma cola de concurrencia
-// ADB, mismo jitter humano y mismo dump de UI que el resto del módulo.
-const TIKMATRIX_CTX = { shell, adb, sleep, dumpUi, live, HJ, HD, CONFIG, execute };
+// Contexto que reutilizan las suites de scripts: misma cola de concurrencia ADB,
+// mismo jitter humano y mismo dump de UI que el resto del módulo.
+const SCRIPT_CTX = { shell, adb, sleep, dumpUi, live, HJ, HD, CONFIG, execute };
 
 async function execute(serial, command, params) {
   const p = params || {};
 
-  // Los scripts largos (warmup, super marketing, boost lives…) viven en su propio
-  // módulo: son bucles con estado, no comandos de una línea como el resto del switch.
+  // Los scripts largos (warmup, campañas, boost lives…) viven en sus módulos:
+  // son bucles con estado, no comandos de una línea como el resto del switch.
   if (tikmatrix.handles(command)) {
     try {
-      return await tikmatrix.run(TIKMATRIX_CTX, serial, command, p);
+      return await tikmatrix.run(SCRIPT_CTX, serial, command, p);
+    } catch (e) {
+      return { success: false, message: `${command}: ${e.message}` };
+    }
+  }
+
+  if (spotify.handles(command)) {
+    try {
+      return await spotify.run(SCRIPT_CTX, serial, command, p);
+    } catch (e) {
+      return { success: false, message: `${command}: ${e.message}` };
+    }
+  }
+
+  if (twitch.handles(command)) {
+    try {
+      return await twitch.run(SCRIPT_CTX, serial, command, p);
     } catch (e) {
       return { success: false, message: `${command}: ${e.message}` };
     }
@@ -601,24 +624,54 @@ async function execute(serial, command, params) {
         await shell(serial, ['input', 'text', String(p.value ?? '').replace(/ /g, '%s')]);
         return { success: true, message: 'Texto escrito' };
 
-      // ---- TIKMATRIX INTEGRATED AUTOMATION COMMANDS ----
-      case 'TIKMATRIX_INSTALL_AGENT': {
+      // ---- AGENTE BSOLUTIONS EN EL DISPOSITIVO ----
+      // Instala el agente propio del proyecto (android-agent -> dev.mcp.agent) y,
+      // si hay alguno compatible con uiautomator2 disponible en el equipo, también,
+      // porque hoy es el único que sabe devolver la jerarquía completa de la
+      // pantalla. Sin esa lectura los scripts no encuentran los controles.
+      case 'INSTALL_AGENT':
+      case 'TIKMATRIX_INSTALL_AGENT': {          // nombre antiguo: rutinas guardadas
+        const instalados = [];
+        const fallos = [];
+
+        const instalar = async (ruta, etiqueta) => {
+          if (!fs.existsSync(ruta)) return false;
+          const out = String(await adb(['-s', serial, 'install', '-r', '-g', ruta], { timeout: 180000 })
+            .catch(e => e.message || ''));
+          if (/Success/i.test(out)) { instalados.push(etiqueta); return true; }
+          fallos.push(`${etiqueta}: ${explainInstallError(out)}`);
+          return false;
+        };
+
+        // 1. Agente Bsolutions (el de este repositorio).
+        const propio = [
+          CONFIG.agentApkPath,
+          app_ruta_recurso('agent', 'mcp-agent.apk'),
+          path.resolve(__dirname, '..', '..', 'android-agent', 'mcp-agent-debug.apk'),
+        ].filter(Boolean).find(r => { try { return fs.existsSync(r); } catch (_) { return false; } });
+
+        if (propio) await instalar(propio, 'Agente Bsolutions (dev.mcp.agent)');
+        else fallos.push('no se encontró el APK del Agente Bsolutions');
+
+        // 2. Lector de UI compatible con uiautomator2, si está disponible.
         const appData = process.env.APPDATA || path.join(process.env.USERPROFILE || '', 'AppData', 'Roaming');
-        const mainApk = path.join(appData, 'com.tikmatrix', 'bin', 'com.github.tikmatrix.apk');
-        const testApk = path.join(appData, 'com.tikmatrix', 'bin', 'com.github.tikmatrix.test.apk');
-        let installed = [];
-        if (fs.existsSync(mainApk)) {
-          await adb(['-s', serial, 'install', '-r', mainApk]).catch(() => {});
-          installed.push('com.github.tikmatrix');
+        for (const [archivo, etiqueta] of [
+          ['com.github.tikmatrix.apk', 'lector de UI'],
+          ['com.github.tikmatrix.test.apk', 'lector de UI (instrumentación)'],
+        ]) {
+          await instalar(path.join(appData, 'com.tikmatrix', 'bin', archivo), etiqueta);
         }
-        if (fs.existsSync(testApk)) {
-          await adb(['-s', serial, 'install', '-r', testApk]).catch(() => {});
-          installed.push('com.github.tikmatrix.test');
-        }
+
+        // Teclado rápido: escribe sin abrir el teclado del sistema.
+        await shell(serial, ['ime', 'enable', 'com.github.tikmatrix/.FastInputIME']).catch(() => {});
         await shell(serial, ['ime', 'set', 'com.github.tikmatrix/.FastInputIME']).catch(() => {});
+
         return {
-          success: installed.length > 0,
-          message: installed.length > 0 ? `Agentes TikMatrix instalados (${installed.join(', ')})` : 'No se encontraron APKs de TikMatrix en AppData'
+          success: instalados.length > 0,
+          message: instalados.length
+            ? `Instalado en el dispositivo: ${instalados.join(', ')}${fallos.length ? ` · pendiente: ${fallos.join('; ')}` : ''}`
+            : `No se pudo instalar ningún agente. ${fallos.join('; ')}`,
+          data: { instalados, fallos },
         };
       }
 

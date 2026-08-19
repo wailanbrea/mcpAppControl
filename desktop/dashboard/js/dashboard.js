@@ -2041,42 +2041,42 @@ function getSelectedDeviceSerials() {
         .filter(Boolean);
 }
 
-async function promptTikMatrixSetText() {
-    const text = await customPrompt('Inyectar texto', 'Texto a escribir en los dispositivos seleccionados (TikMatrix ADB_SET_TEXT).');
+async function promptInyectarTexto() {
+    const text = await customPrompt('Inyectar texto', 'Texto a escribir en los dispositivos seleccionados (vía el teclado rápido del agente).');
     if (text === null || text === undefined) return;
-    quickAction('TIKMATRIX_SET_TEXT', { text });
+    quickAction('TIKTOK_SET_TEXT', { text });
 }
 
-async function promptTikMatrixSimulateTyping() {
-    const text = await customPrompt('Tipeo humano simulado', 'Texto para escribir con retardos aleatorios (TikMatrix ADB_SIMULATE_TYPING).');
+async function promptTipeoHumano() {
+    const text = await customPrompt('Tipeo humano simulado', 'Texto para escribir con retardos aleatorios (vía el teclado rápido del agente).');
     if (text === null || text === undefined) return;
-    quickAction('TIKMATRIX_SIMULATE_TYPING', { text });
+    quickAction('TIKTOK_SIMULATE_TYPING', { text });
 }
 
-async function promptTikMatrixComment() {
+async function promptComentar() {
     const comment = await customPrompt('Comentar publicación', 'Comentario a publicar en el vídeo que está en pantalla.');
     if (!comment) return;
-    quickAction('TIKMATRIX_COMMENT_FEED', { comment });
+    quickAction('TIKTOK_COMMENT_FEED', { comment });
 }
 
-async function promptTikMatrixPostVideo() {
+async function promptPublicarVideo() {
     const caption = await customPrompt('Publicar vídeo', 'Pie de foto y hashtags para la publicación.', '', '#fyp #viral');
     if (!caption) return;
-    quickAction('TIKMATRIX_POST_VIDEO', { caption });
+    quickAction('TIKTOK_POST_VIDEO', { caption });
 }
 
-async function promptTikMatrixFollowUser() {
+async function promptSeguirUsuario() {
     const username = await customPrompt('Seguir usuario', 'Nombre de usuario de TikTok a buscar y seguir.', '', '@usuario');
     if (!username) return;
-    quickAction('TIKMATRIX_FOLLOW_USER', { username });
+    quickAction('TIKTOK_FOLLOW_USER', { username });
 }
 
-async function promptTikMatrixSendDM() {
+async function promptEnviarDM() {
     const username = await customPrompt('Mensaje directo', 'Usuario de destino del DM.', '', '@usuario');
     if (!username) return;
     const message = await customPrompt('Mensaje directo', `Mensaje privado a enviar a ${username}.`);
     if (!message) return;
-    quickAction('TIKMATRIX_SEND_DM', { username, message });
+    quickAction('TIKTOK_SEND_DM', { username, message });
 }
 
 async function promptConfigureProxyRotation() {

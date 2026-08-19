@@ -1,4 +1,4 @@
-// Primitivas compartidas por las suites de scripts (TikMatrix, Spotify…).
+// Primitivas compartidas por las suites de scripts (TikTok, Spotify, Twitch).
 //
 // Aquí vive todo lo que no depende de la app concreta: leer el árbol de la
 // pantalla, localizar controles por texto o content-desc, pulsar, deslizar,

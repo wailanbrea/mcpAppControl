@@ -482,6 +482,27 @@ function getRows(nativeDb, sql, params = []) {
   }
 }
 
+// Los comandos de la suite de TikTok se llamaban TIKMATRIX_* por la app que se
+// tomó de referencia. Al pasar a TIKTOK_*, las rutinas ya guardadas seguirían
+// apuntando al nombre viejo y fallarían al ejecutarse, así que se reescriben una
+// sola vez. Es idempotente: si no queda ninguna, no hace nada.
+function migrarNombresDeComando(ejecutar) {
+  const cambios = [
+    ["UPDATE workflows SET steps = REPLACE(steps, 'TIKMATRIX_', 'TIKTOK_') WHERE steps LIKE '%TIKMATRIX\\_%' ESCAPE '\\'", 'rutinas'],
+    ["UPDATE tasks SET params = REPLACE(params, 'TIKMATRIX_', 'TIKTOK_') WHERE params LIKE '%TIKMATRIX\\_%' ESCAPE '\\'", 'tareas'],
+    ["UPDATE execution_logs SET command_type = REPLACE(command_type, 'TIKMATRIX_', 'TIKTOK_') WHERE command_type LIKE 'TIKMATRIX\\_%' ESCAPE '\\'", 'registros'],
+  ];
+  const hechos = [];
+  for (const [sql, etiqueta] of cambios) {
+    try {
+      const n = ejecutar(sql);
+      if (n) hechos.push(`${n} ${etiqueta}`);
+    } catch (_) { /* tabla ausente en bases antiguas: no es un fallo */ }
+  }
+  if (hechos.length) console.log(`[migración] comandos TIKMATRIX_* renombrados a TIKTOK_* en ${hechos.join(', ')}`);
+  return hechos;
+}
+
 function ensureColumns(nativeDb, table, columns) {
   const existing = new Set(getRows(nativeDb, `PRAGMA table_info(${table})`).map(column => column.name));
   for (const [name, definition] of Object.entries(columns)) {
@@ -534,6 +555,7 @@ function openNative(file) {
   for (const [name, def] of Object.entries(DEVICE_COLUMNS)) {
     if (!cols.has(name)) native.exec(`ALTER TABLE devices ADD COLUMN ${name} ${def}`);
   }
+  migrarNombresDeComando(sql => native.prepare(sql).run().changes);
   return {
     file, native, closed: false, engine: 'better-sqlite3',
     run(sql, params = []) {
@@ -581,6 +603,7 @@ async function openSqlJs(file = ':memory:') {
 
   native.run(SCHEMA);
   ensureColumns(native, 'devices', DEVICE_COLUMNS);
+  migrarNombresDeComando(sql => { native.run(sql); return native.getRowsModified(); });
 
   const db = {
     file,

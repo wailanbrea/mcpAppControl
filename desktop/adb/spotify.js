@@ -1,4 +1,4 @@
-// Suite de scripts para Spotify, con la misma forma que la de TikMatrix.
+// Suite de scripts para Spotify, con la misma forma que la de TikTok.
 //
 // Las etiquetas NO son inventadas: salen del volcado real de la app en un
 // SM-G998U con el sistema en español. De ahí vienen cosas como "Pestaña 1 de 4"
@@ -562,7 +562,7 @@ async function run(ctx, serial, command, p) {
 
   let rotacion = null;
   if (p.rotate_proxy && ctx.execute) {
-    rotacion = await ctx.execute(serial, 'TIKMATRIX_ROTATE_PROXY', {})
+    rotacion = await ctx.execute(serial, 'TIKTOK_ROTATE_PROXY', {})
       .catch(e => ({ success: false, message: e.message }));
     if (!rotacion.success) {
       return { success: false, message: `Rotación de proxy fallida, no se ejecuta el script: ${rotacion.message}`, data: { rotacion } };

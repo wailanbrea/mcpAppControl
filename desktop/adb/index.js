@@ -8,7 +8,7 @@ const path = require('path');
 const fs = require('fs');
 const net = require('net');
 const maintenance = require('./maintenance');
-const tikmatrix = require('./tikmatrix');
+const tiktok = require('./tiktok');
 const agent = require('./agent');
 const spotify = require('./spotify');
 const twitch = require('./twitch');
@@ -389,11 +389,19 @@ const SCRIPT_CTX = { shell, adb, sleep, dumpUi, live, HJ, HD, CONFIG, execute };
 async function execute(serial, command, params) {
   const p = params || {};
 
+  // Compatibilidad con el nombre anterior de la suite de TikTok. La migración de
+  // la base de datos reescribe las rutinas guardadas, pero una petición externa
+  // (el MCP, un script del usuario, una integración) puede seguir mandando el
+  // nombre viejo; aquí se traduce en vez de fallar.
+  if (typeof command === 'string' && command.startsWith('TIKMATRIX_')) {
+    command = 'TIKTOK_' + command.slice('TIKMATRIX_'.length);
+  }
+
   // Los scripts largos (warmup, campañas, boost lives…) viven en sus módulos:
   // son bucles con estado, no comandos de una línea como el resto del switch.
-  if (tikmatrix.handles(command)) {
+  if (tiktok.handles(command)) {
     try {
-      return await tikmatrix.run(SCRIPT_CTX, serial, command, p);
+      return await tiktok.run(SCRIPT_CTX, serial, command, p);
     } catch (e) {
       return { success: false, message: `${command}: ${e.message}` };
     }
@@ -630,7 +638,7 @@ async function execute(serial, command, params) {
       // porque hoy es el único que sabe devolver la jerarquía completa de la
       // pantalla. Sin esa lectura los scripts no encuentran los controles.
       case 'INSTALL_AGENT':
-      case 'TIKMATRIX_INSTALL_AGENT': {          // nombre antiguo: rutinas guardadas
+      case 'TIKTOK_INSTALL_AGENT': {          // nombre antiguo: rutinas guardadas
         const instalados = [];
         const fallos = [];
 
@@ -675,36 +683,36 @@ async function execute(serial, command, params) {
         };
       }
 
-      case 'TIKMATRIX_SET_TEXT': {
+      case 'TIKTOK_SET_TEXT': {
         const val = String(p.value ?? p.text ?? '');
         await shell(serial, ['am', 'broadcast', '-a', 'ADB_SET_TEXT', '--es', 'text', val]);
-        return { success: true, message: `Texto TikMatrix enviado: "${val.slice(0, 20)}..."` };
+        return { success: true, message: `Texto enviado al dispositivo: "${val.slice(0, 20)}..."` };
       }
 
-      case 'TIKMATRIX_CLEAR_TEXT':
+      case 'TIKTOK_CLEAR_TEXT':
         await shell(serial, ['am', 'broadcast', '-a', 'ADB_CLEAR_TEXT']);
-        return { success: true, message: 'Texto de campo limpiado por TikMatrix' };
+        return { success: true, message: 'Campo de texto limpiado' };
 
-      case 'TIKMATRIX_SIMULATE_TYPING': {
+      case 'TIKTOK_SIMULATE_TYPING': {
         const val = String(p.value ?? p.text ?? '');
         await shell(serial, ['am', 'broadcast', '-a', 'ADB_SIMULATE_TYPING', '--es', 'text', val]);
-        return { success: true, message: `Tipeo simulado TikMatrix enviado` };
+        return { success: true, message: `Tipeo simulado enviado` };
       }
 
-      case 'TIKMATRIX_CLEAR_DCIM': {
+      case 'TIKTOK_CLEAR_DCIM': {
         await shell(serial, ['rm', '-f', '/storage/emulated/0/DCIM/*.mp4', '/storage/emulated/0/DCIM/*.jpg', '/storage/emulated/0/DCIM/*.png']).catch(() => {});
         await shell(serial, ['rm', '-f', '/storage/emulated/0/DCIM/Camera/*.mp4', '/storage/emulated/0/DCIM/Camera/*.jpg', '/storage/emulated/0/DCIM/Camera/*.png']).catch(() => {});
         await shell(serial, ['rm', '-f', '/sdcard/*.mp4', '/sdcard/*.jpg', '/sdcard/*.png']).catch(() => {});
         return { success: true, message: 'Galería DCIM / sdcard limpiada correctamente' };
       }
 
-      case 'TIKMATRIX_OPEN_TIKTOK': {
+      case 'TIKTOK_OPEN_TIKTOK': {
         await shell(serial, ['am', 'start', '-n', 'com.zhiliaoapp.musically/com.ss.android.ugc.aweme.splash.SplashActivity']);
         return { success: true, message: 'TikTok abierto en el dispositivo' };
       }
 
       // --- TIKMATRIX FULL SCRIPTS SUITE REPLICATION ---
-      case 'TIKMATRIX_BROWSE_FEED': {
+      case 'TIKTOK_BROWSE_FEED': {
         // Navega orgánicamente por el feed deslicando hacia arriba
         const dev = live.get(serial);
         const w = dev?.size?.w || 1080, h = dev?.size?.h || 2400;
@@ -719,7 +727,7 @@ async function execute(serial, command, params) {
         return { success: true, message: `Navegación orgánica de feed completada (${count} videos)` };
       }
 
-      case 'TIKMATRIX_LIKE_FEED': {
+      case 'TIKTOK_LIKE_FEED': {
         // Da Me Gusta al vídeo actual (doble tap o clic en botón Me Gusta)
         const dev = live.get(serial);
         const w = dev?.size?.w || 1080, h = dev?.size?.h || 2400;
@@ -730,7 +738,7 @@ async function execute(serial, command, params) {
         return { success: true, message: 'Me Gusta (Like) enviado a la publicación' };
       }
 
-      case 'TIKMATRIX_FAVORITE_VIDEO': {
+      case 'TIKTOK_FAVORITE_VIDEO': {
         // Guarda en favoritos (doble tap o intento en barra lateral derecha)
         const dev = live.get(serial);
         const w = dev?.size?.w || 1080, h = dev?.size?.h || 2400;
@@ -739,7 +747,7 @@ async function execute(serial, command, params) {
         return { success: true, message: 'Publicación guardada en Favoritos' };
       }
 
-      case 'TIKMATRIX_COMMENT_FEED': {
+      case 'TIKTOK_COMMENT_FEED': {
         // Comenta la publicación activa con el texto o lista proporcionada
         const commentText = String(p.comment || p.text || p.caption || 'Awesome! 🔥').trim();
         const dev = live.get(serial);
@@ -757,7 +765,7 @@ async function execute(serial, command, params) {
         return { success: true, message: `Comentario publicado: "${commentText.slice(0, 20)}..."` };
       }
 
-      case 'TIKMATRIX_FOLLOW_USER': {
+      case 'TIKTOK_FOLLOW_USER': {
         // Busca usuario por username y pulsa Seguir
         const target = String(p.username || p.target || '').replace(/^@/, '').trim();
         if (!target) return { success: false, message: 'Falta nombre de usuario (target)' };
@@ -772,7 +780,7 @@ async function execute(serial, command, params) {
         return { success: true, message: `Seguir enviado a @${target}` };
       }
 
-      case 'TIKMATRIX_UNFOLLOW_ALL': {
+      case 'TIKTOK_UNFOLLOW_ALL': {
         // Descorrido masivo en la lista de seguidos
         const limit = Number(p.limit || 10);
         const dev = live.get(serial);
@@ -786,7 +794,7 @@ async function execute(serial, command, params) {
         return { success: true, message: `Dejar de seguir procesado (${limit} perfiles)` };
       }
 
-      case 'TIKMATRIX_SEND_DM': {
+      case 'TIKTOK_SEND_DM': {
         // Envío de mensaje privado directo (DM)
         const target = String(p.username || p.target || '').replace(/^@/, '').trim();
         const msg = String(p.message || p.text || 'Hola! 👋').trim();
@@ -799,7 +807,7 @@ async function execute(serial, command, params) {
         return { success: true, message: `Mensaje directo enviado a @${target}` };
       }
 
-      case 'TIKMATRIX_POST_VIDEO': {
+      case 'TIKTOK_POST_VIDEO': {
         // Carga y publicación de video con pie de foto
         const caption = String(p.caption || p.postCaption || 'Check this out! #fyp #viral').trim();
         const dev = live.get(serial);
@@ -816,7 +824,7 @@ async function execute(serial, command, params) {
         return { success: true, message: `Publicación iniciada con pie de foto: "${caption.slice(0, 20)}..."` };
       }
 
-      case 'TIKMATRIX_WATCHER_TICK': {
+      case 'TIKTOK_WATCHER_TICK': {
         // Detector de diálogos/popups (dialog_watcher): cierra popups molestos automáticamente
         const xml = await dumpUi(serial).catch(() => '');
         const autoDismiss = ['Permitir', 'Allow', 'Entendido', 'Got it', 'Ahora no', 'Not now', 'Cancelar', 'Cancel', 'Aceptar', 'OK', 'Continuar'];
@@ -835,7 +843,7 @@ async function execute(serial, command, params) {
         return { success: true, message: 'No se detectaron popups molestos en pantalla', data: { dismissed: null } };
       }
 
-      case 'TIKMATRIX_SCRAPE_ACCOUNT': {
+      case 'TIKTOK_SCRAPE_ACCOUNT': {
         // Scrapeo de analíticas y seguidores visibles de la cuenta
         const xml = await dumpUi(serial).catch(() => '');
         const reNumbers = /(\d+(?:\.\d+)?[KMB]?)\s*(?:Followers|Seguidores|Likes|Me gusta|Following|Siguiendo)/gi;
@@ -851,7 +859,7 @@ async function execute(serial, command, params) {
         };
       }
 
-      case 'TIKMATRIX_ROTATE_PROXY': {
+      case 'TIKTOK_ROTATE_PROXY': {
         // Rotación de IP de proxy dinámico/móvil vía URL de refresco.
         // El handle abierto llega por adb.start({ db }) desde main.js. Requerir
         // '../server/db' aquí devolvía el MÓDULO (solo exporta open/now/pruneLogs),

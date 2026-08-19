@@ -1,4 +1,4 @@
-// MCP AppControl — proceso principal de Electron.
+// Bsolutions Control App — proceso principal de Electron.
 // Orquesta: backend Node.js (SQLite sql.js) + Command Router (WebSocket) + ADB + Dashboard.
 
 const { app, BrowserWindow, dialog, session } = require('electron');
@@ -21,6 +21,15 @@ const mirror = require('./adb/mirror');
 
 const HTTP_PORT = 8733;      // puerto local del backend Express embebido
 const WS_PORT = 6011;        // puerto del Command Router (WebSocket)
+
+// Carpeta de datos fijada explícitamente.
+//
+// Por defecto Electron la deriva de productName, así que renombrar el producto
+// movería la ruta y la app arrancaría contra una base vacía: se perderían de
+// vista los dispositivos, las rutinas y el token. Anclándola aquí, el nombre
+// comercial puede cambiar sin tocar dónde viven los datos.
+const CARPETA_DATOS = 'MCP Control Bsolutions V2';
+app.setPath('userData', path.join(app.getPath('appData'), CARPETA_DATOS));
 
 let win = null;
 let apiToken = '';
@@ -54,7 +63,7 @@ function loadApiToken() {
 function createWindow() {
   win = new BrowserWindow({
     width: 1320, height: 860,
-    title: 'MCP Control Bsolutions V2',
+    title: 'Bsolutions Control App',
     backgroundColor: '#0f1117',
     webPreferences: { contextIsolation: true, nodeIntegration: false },
   });
@@ -226,7 +235,7 @@ app.whenReady().then(async () => {
     //    frameMaxWidth/frameQuality = streaming ligero del muro (JPEG reescalado).
     adb.start({
       backendUrl: backendApi, backendToken: apiToken,
-      db,                                        // handle abierto de SQLite: comandos como TIKMATRIX_ROTATE_PROXY leen su config de la BD
+      db,                                        // handle abierto de SQLite: comandos como TIKTOK_ROTATE_PROXY leen su config de la BD
       frameMaxWidth: 0, frameQuality: 55,        // visor enfocado: resolución NATIVA (para que el toque caiga donde se hace clic) + JPEG
       thumbMaxWidth: 240, thumbQuality: 40, thumbTtlMs: 1500,  // miniaturas del muro (ligeras, escala 40+)
     });
@@ -235,7 +244,7 @@ app.whenReady().then(async () => {
     // 7. Crear ventana principal
     createWindow();
   } catch (err) {
-    dialog.showErrorBox('MCP AppControl', 'No se pudo iniciar la aplicación:\n' + err.message);
+    dialog.showErrorBox('Bsolutions Control App', 'No se pudo iniciar la aplicación:\n' + err.message);
     app.quit();
   }
 });

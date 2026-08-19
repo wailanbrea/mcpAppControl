@@ -1,7 +1,7 @@
-// Suite de scripts TikMatrix replicada sobre ADB puro (sin el agente propietario).
+// Suite de scripts de TikTok — Bsolutions Control App.
 //
 // Cada script sigue la documentación oficial de tikmatrix.com/docs/tutorial-scripts.
-// A diferencia del primer lote de comandos TIKMATRIX_*, que tocaba coordenadas fijas
+// A diferencia del primer lote de comandos TIKTOK_*, que tocaba coordenadas fijas
 // (w*0.92, h*0.54…), aquí se localizan los controles por texto/content-desc leyendo el
 // árbol de uiautomator: los porcentajes se rompen en cuanto cambia el modelo, la
 // densidad o el idioma del teléfono, y la granja tiene teléfonos distintos.
@@ -48,28 +48,28 @@ const PACKAGES = {
 const EMOJIS = ['🔥', '😍', '👏', '💯', '❤️', '😂', '🙌', '✨', '👀', '🤩'];
 
 const COMMANDS = new Set([
-  'TIKMATRIX_LOGIN',
-  'TIKMATRIX_FILL_PROFILE',
-  'TIKMATRIX_MATCH_ACCOUNTS',
-  'TIKMATRIX_SWITCH_ACCOUNT',
-  'TIKMATRIX_ACCOUNT_WARMUP',
-  'TIKMATRIX_PUBLISH_POST',
-  'TIKMATRIX_DELETE_POSTS',
-  'TIKMATRIX_PRIVACY_SETTINGS',
-  'TIKMATRIX_BOOST_COMMENTS',
-  'TIKMATRIX_BOOST_LIVES',
-  'TIKMATRIX_BOOST_POSTS',
-  'TIKMATRIX_SCRAPE_USERS',
-  'TIKMATRIX_FOLLOW_BACK',
-  'TIKMATRIX_FOLLOW_SUGGESTED',
-  // Reemplaza al TIKMATRIX_UNFOLLOW_ALL por coordenadas fijas del switch de
+  'TIKTOK_LOGIN',
+  'TIKTOK_FILL_PROFILE',
+  'TIKTOK_MATCH_ACCOUNTS',
+  'TIKTOK_SWITCH_ACCOUNT',
+  'TIKTOK_ACCOUNT_WARMUP',
+  'TIKTOK_PUBLISH_POST',
+  'TIKTOK_DELETE_POSTS',
+  'TIKTOK_PRIVACY_SETTINGS',
+  'TIKTOK_BOOST_COMMENTS',
+  'TIKTOK_BOOST_LIVES',
+  'TIKTOK_BOOST_POSTS',
+  'TIKTOK_SCRAPE_USERS',
+  'TIKTOK_FOLLOW_BACK',
+  'TIKTOK_FOLLOW_SUGGESTED',
+  // Reemplaza al TIKTOK_UNFOLLOW_ALL por coordenadas fijas del switch de
   // adb/index.js: este localiza los botones por texto y sobrevive a otro modelo.
-  'TIKMATRIX_UNFOLLOW_ALL',
-  'TIKMATRIX_SUPER_MARKETING',
-  'TIKMATRIX_TEST_SCRIPT',
-  'TIKMATRIX_MASS_DM',
-  'TIKMATRIX_MASS_COMMENT',
-  'TIKMATRIX_LIST_PACKAGES',
+  'TIKTOK_UNFOLLOW_ALL',
+  'TIKTOK_SUPER_MARKETING',
+  'TIKTOK_TEST_SCRIPT',
+  'TIKTOK_MASS_DM',
+  'TIKTOK_MASS_COMMENT',
+  'TIKTOK_LIST_PACKAGES',
 ]);
 
 function handles(command) { return COMMANDS.has(command); }
@@ -1172,28 +1172,28 @@ async function resolverPaquetes(ctx, serial, p) {
 // Despacho de un script concreto, ya con el paquete resuelto.
 function ejecutarScript(ctx, serial, command, p, ui) {
   switch (command) {
-    case 'TIKMATRIX_LOGIN':             return login(ctx, serial, p, ui);
-    case 'TIKMATRIX_SWITCH_ACCOUNT':    return switchAccount(ctx, serial, p, ui);
-    case 'TIKMATRIX_PUBLISH_POST':      return publishPost(ctx, serial, p, ui);
-    case 'TIKMATRIX_FOLLOW_BACK':       return followBack(ctx, serial, p, ui);
-    case 'TIKMATRIX_UNFOLLOW_ALL':      return unfollowAll(ctx, serial, p, ui);
-    case 'TIKMATRIX_TEST_SCRIPT':       return testScript(ctx, serial, p, ui);
-    case 'TIKMATRIX_ACCOUNT_WARMUP':    return accountWarmup(ctx, serial, p, ui);
-    case 'TIKMATRIX_FILL_PROFILE':      return fillProfile(ctx, serial, p, ui);
-    case 'TIKMATRIX_MATCH_ACCOUNTS':    return matchAccounts(ctx, serial, p, ui);
-    case 'TIKMATRIX_SCRAPE_USERS':      return scrapeUsers(ctx, serial, p, ui);
-    case 'TIKMATRIX_FOLLOW_SUGGESTED':  return followSuggested(ctx, serial, p, ui);
-    case 'TIKMATRIX_MASS_DM':           return massDm(ctx, serial, p, ui);
-    case 'TIKMATRIX_MASS_COMMENT':      return massComment(ctx, serial, p, ui);
-    case 'TIKMATRIX_BOOST_POSTS':       return boostPosts(ctx, serial, p, ui);
-    case 'TIKMATRIX_BOOST_LIVES':       return boostLives(ctx, serial, p, ui);
-    case 'TIKMATRIX_BOOST_COMMENTS':    return boostComments(ctx, serial, p, ui);
-    case 'TIKMATRIX_DELETE_POSTS':      return deletePosts(ctx, serial, p, ui);
-    case 'TIKMATRIX_PRIVACY_SETTINGS':  return privacySettings(ctx, serial, p, ui);
-    case 'TIKMATRIX_SUPER_MARKETING':   return superMarketing(ctx, serial, p, ui);
-    case 'TIKMATRIX_LIST_PACKAGES':     return listPackages(ctx, serial, p);
+    case 'TIKTOK_LOGIN':             return login(ctx, serial, p, ui);
+    case 'TIKTOK_SWITCH_ACCOUNT':    return switchAccount(ctx, serial, p, ui);
+    case 'TIKTOK_PUBLISH_POST':      return publishPost(ctx, serial, p, ui);
+    case 'TIKTOK_FOLLOW_BACK':       return followBack(ctx, serial, p, ui);
+    case 'TIKTOK_UNFOLLOW_ALL':      return unfollowAll(ctx, serial, p, ui);
+    case 'TIKTOK_TEST_SCRIPT':       return testScript(ctx, serial, p, ui);
+    case 'TIKTOK_ACCOUNT_WARMUP':    return accountWarmup(ctx, serial, p, ui);
+    case 'TIKTOK_FILL_PROFILE':      return fillProfile(ctx, serial, p, ui);
+    case 'TIKTOK_MATCH_ACCOUNTS':    return matchAccounts(ctx, serial, p, ui);
+    case 'TIKTOK_SCRAPE_USERS':      return scrapeUsers(ctx, serial, p, ui);
+    case 'TIKTOK_FOLLOW_SUGGESTED':  return followSuggested(ctx, serial, p, ui);
+    case 'TIKTOK_MASS_DM':           return massDm(ctx, serial, p, ui);
+    case 'TIKTOK_MASS_COMMENT':      return massComment(ctx, serial, p, ui);
+    case 'TIKTOK_BOOST_POSTS':       return boostPosts(ctx, serial, p, ui);
+    case 'TIKTOK_BOOST_LIVES':       return boostLives(ctx, serial, p, ui);
+    case 'TIKTOK_BOOST_COMMENTS':    return boostComments(ctx, serial, p, ui);
+    case 'TIKTOK_DELETE_POSTS':      return deletePosts(ctx, serial, p, ui);
+    case 'TIKTOK_PRIVACY_SETTINGS':  return privacySettings(ctx, serial, p, ui);
+    case 'TIKTOK_SUPER_MARKETING':   return superMarketing(ctx, serial, p, ui);
+    case 'TIKTOK_LIST_PACKAGES':     return listPackages(ctx, serial, p);
     default:
-      return { success: false, message: `Script TikMatrix no soportado: ${command}` };
+      return { success: false, message: `Script de TikTok no soportado: ${command}` };
   }
 }
 
@@ -1217,7 +1217,7 @@ async function run(ctx, serial, command, p) {
   //    existe en el transporte en vez de duplicar la lógica de rotación.
   let rotacion = null;
   if (p.rotate_proxy && ctx.execute) {
-    rotacion = await ctx.execute(serial, 'TIKMATRIX_ROTATE_PROXY', {}).catch(e => ({ success: false, message: e.message }));
+    rotacion = await ctx.execute(serial, 'TIKTOK_ROTATE_PROXY', {}).catch(e => ({ success: false, message: e.message }));
     if (!rotacion.success) {
       return { success: false, message: `Rotación de proxy fallida, no se ejecuta el script: ${rotacion.message}`, data: { rotacion } };
     }

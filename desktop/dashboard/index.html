@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MCP Control Bsolutions V2</title>
+    <title>Bsolutions Control App</title>
     <meta name="theme-color" content="#4f46e5">
     <link rel="icon" href="/dashboard/icons/mcp-icon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
-    <link rel="stylesheet" href="/dashboard/css/dashboard.css?v=20260819-v3">
+    <link rel="stylesheet" href="/dashboard/css/dashboard.css?v=20260819-v4">
 </head>
 <body class="bsolutions-theme">
 
@@ -16,7 +16,7 @@
         <div class="brand-section">
             <div class="brand-logo">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-                <span class="brand-name">MCP Control Bsolutions V2</span>
+                <span class="brand-name">Bsolutions Control App</span>
             </div>
             <span class="version-badge">v2.1.5</span>
         </div>
@@ -99,77 +99,77 @@
                                 <p class="sub-tab-hint">Crea rutinas y horarios, o lanza campañas de views (farmeo de visualizaciones) para los dispositivos seleccionados.</p>
                             </div>
 
-                            <!-- TikMatrix Automation Suite -->
+                            <!-- Suite de automatización de TikTok -->
                             <div id="actionSubTab-tiktok" class="action-buttons-grid" style="display:none;">
                                 <!-- SCRIPTS DE TIKTOK — mismo conjunto, orden y colores que el panel Scripts
                                      de TikMatrix, que es la app de referencia. Las etiquetas van en inglés
                                      a propósito, para corresponderse una a una con su documentación. -->
                                 <div class="tm-pills">
-                                    <button class="tm-pill" onclick="abrirScriptTikMatrix('TIKMATRIX_LOGIN')" title="Inicia sesión con email o usuario; admite contraseña:secreto_2fa">🔑 Login</button>
-                                    <button class="tm-pill" onclick="abrirScriptTikMatrix('TIKMATRIX_FILL_PROFILE')" title="Apodo, nombre de usuario, biografía y avatar">👤 Fill Profile</button>
-                                    <button class="tm-pill" onclick="abrirScriptTikMatrix('TIKMATRIX_MATCH_ACCOUNTS')" title="Detecta las cuentas presentes en el teléfono">👥 Match Account</button>
-                                    <button class="tm-pill" onclick="abrirScriptTikMatrix('TIKMATRIX_SWITCH_ACCOUNT')" title="Cambia a otra cuenta ya presente en el dispositivo">🔄 Switch Account</button>
-                                    <button class="tm-pill" onclick="abrirScriptTikMatrix('TIKMATRIX_ACCOUNT_WARMUP')" title="Navega el feed viendo, dando like, siguiendo y comentando por probabilidad">🔥 Account Warmup</button>
-                                    <button class="tm-pill" onclick="abrirScriptTikMatrix('TIKMATRIX_PUBLISH_POST')" title="Sube y publica con pie de foto, sonido y espera de subida">📤 Post</button>
-                                    <button class="tm-pill" onclick="abrirScriptTikMatrix('TIKMATRIX_DELETE_POSTS')" title="Elimina publicaciones por debajo de un umbral de vistas">🗑️ Delete Post</button>
-                                    <button class="tm-pill" onclick="abrirScriptTikMatrix('TIKMATRIX_PRIVACY_SETTINGS')" title="Cambia la privacidad en lote por umbral de vistas">🛡️ Privacy Settings</button>
-                                    <button class="tm-pill" onclick="abrirScriptTikMatrix('TIKMATRIX_BOOST_COMMENTS')" title="Da like y responde a comentarios concretos por URL">💬 Boost Comments</button>
-                                    <button class="tm-pill" onclick="abrirScriptTikMatrix('TIKMATRIX_BOOST_LIVES')" title="Entra a directos, ve, da likes y comenta">📹 Boost Lives</button>
-                                    <button class="tm-pill" onclick="abrirScriptTikMatrix('TIKMATRIX_SCRAPE_USERS')" title="Extrae usuarios por seguidores, seguidos o palabra clave">📥 Scrape Users</button>
-                                    <button class="tm-pill" onclick="abrirScriptTikMatrix('TIKMATRIX_FOLLOW_BACK')" title="Devuelve el seguimiento a quien te sigue y aún no sigues">↩️ Follow Back</button>
-                                    <button class="tm-pill" onclick="abrirScriptTikMatrix('TIKMATRIX_FOLLOW_SUGGESTED')" title="Sigue cuentas de la pestaña Sugeridas">✅ Follow Suggested</button>
-                                    <button class="tm-pill" onclick="abrirScriptTikMatrix('TIKMATRIX_UNFOLLOW_ALL')" title="Recorre la lista de seguidos dejando de seguir">🚫 Unfollow All</button>
-                                    <button class="tm-pill tm-green" onclick="abrirScriptTikMatrix('TIKMATRIX_SUPER_MARKETING')" title="Cola única: seguir, DM, interacción con publicaciones y comentarios">🚀 Super Marketing</button>
-                                    <button class="tm-pill tm-amber" onclick="abrirScriptTikMatrix('TIKMATRIX_TEST_SCRIPT')" title="Comprueba sin efectos: app instalada, uiautomator, resolución e idioma">🧪 Test Script</button>
-                                    <button class="tm-pill tm-red" onclick="detenerTareasTikMatrix()" title="Cancela las tareas en curso y cierra la app en los dispositivos">⏹️ Stop Task</button>
+                                    <button class="tm-pill" onclick="abrirScript('TIKTOK_LOGIN')" title="Inicia sesión con email o usuario; admite contraseña:secreto_2fa">🔑 Login</button>
+                                    <button class="tm-pill" onclick="abrirScript('TIKTOK_FILL_PROFILE')" title="Apodo, nombre de usuario, biografía y avatar">👤 Fill Profile</button>
+                                    <button class="tm-pill" onclick="abrirScript('TIKTOK_MATCH_ACCOUNTS')" title="Detecta las cuentas presentes en el teléfono">👥 Match Account</button>
+                                    <button class="tm-pill" onclick="abrirScript('TIKTOK_SWITCH_ACCOUNT')" title="Cambia a otra cuenta ya presente en el dispositivo">🔄 Switch Account</button>
+                                    <button class="tm-pill" onclick="abrirScript('TIKTOK_ACCOUNT_WARMUP')" title="Navega el feed viendo, dando like, siguiendo y comentando por probabilidad">🔥 Account Warmup</button>
+                                    <button class="tm-pill" onclick="abrirScript('TIKTOK_PUBLISH_POST')" title="Sube y publica con pie de foto, sonido y espera de subida">📤 Post</button>
+                                    <button class="tm-pill" onclick="abrirScript('TIKTOK_DELETE_POSTS')" title="Elimina publicaciones por debajo de un umbral de vistas">🗑️ Delete Post</button>
+                                    <button class="tm-pill" onclick="abrirScript('TIKTOK_PRIVACY_SETTINGS')" title="Cambia la privacidad en lote por umbral de vistas">🛡️ Privacy Settings</button>
+                                    <button class="tm-pill" onclick="abrirScript('TIKTOK_BOOST_COMMENTS')" title="Da like y responde a comentarios concretos por URL">💬 Boost Comments</button>
+                                    <button class="tm-pill" onclick="abrirScript('TIKTOK_BOOST_LIVES')" title="Entra a directos, ve, da likes y comenta">📹 Boost Lives</button>
+                                    <button class="tm-pill" onclick="abrirScript('TIKTOK_SCRAPE_USERS')" title="Extrae usuarios por seguidores, seguidos o palabra clave">📥 Scrape Users</button>
+                                    <button class="tm-pill" onclick="abrirScript('TIKTOK_FOLLOW_BACK')" title="Devuelve el seguimiento a quien te sigue y aún no sigues">↩️ Follow Back</button>
+                                    <button class="tm-pill" onclick="abrirScript('TIKTOK_FOLLOW_SUGGESTED')" title="Sigue cuentas de la pestaña Sugeridas">✅ Follow Suggested</button>
+                                    <button class="tm-pill" onclick="abrirScript('TIKTOK_UNFOLLOW_ALL')" title="Recorre la lista de seguidos dejando de seguir">🚫 Unfollow All</button>
+                                    <button class="tm-pill tm-green" onclick="abrirScript('TIKTOK_SUPER_MARKETING')" title="Cola única: seguir, DM, interacción con publicaciones y comentarios">🚀 Super Marketing</button>
+                                    <button class="tm-pill tm-amber" onclick="abrirScript('TIKTOK_TEST_SCRIPT')" title="Comprueba sin efectos: app instalada, uiautomator, resolución e idioma">🧪 Test Script</button>
+                                    <button class="tm-pill tm-red" onclick="detenerTareas()" title="Cancela las tareas en curso y cierra la app en los dispositivos">⏹️ Stop Task</button>
                                 </div>
 
                                 <!-- Scripts que la doc de TikMatrix ya absorbió dentro de Super Marketing,
                                      mantenidos sueltos porque lanzarlos por separado sigue siendo útil. -->
                                 <div class="tm-sep">Extras</div>
                                 <div class="tm-pills">
-                                    <button class="tm-pill tm-ghost" onclick="abrirScriptTikMatrix('TIKMATRIX_BOOST_POSTS')" title="Like, guardar, repost, compartir y comentar sobre una lista de URLs">📈 Boost Posts</button>
-                                    <button class="tm-pill tm-ghost" onclick="abrirScriptTikMatrix('TIKMATRIX_MASS_DM')" title="DM masivo con plantillas, spintax y placeholders">📨 Mass DM</button>
-                                    <button class="tm-pill tm-ghost" onclick="abrirScriptTikMatrix('TIKMATRIX_MASS_COMMENT')" title="Comenta una lista de publicaciones por URL">🗨️ Mass Comment</button>
-                                    <button class="tm-pill tm-ghost" onclick="abrirScriptTikMatrix('TIKMATRIX_LIST_PACKAGES')" title="Comprueba qué apps objetivo hay instaladas, clones incluidos">📦 App Packages</button>
+                                    <button class="tm-pill tm-ghost" onclick="abrirScript('TIKTOK_BOOST_POSTS')" title="Like, guardar, repost, compartir y comentar sobre una lista de URLs">📈 Boost Posts</button>
+                                    <button class="tm-pill tm-ghost" onclick="abrirScript('TIKTOK_MASS_DM')" title="DM masivo con plantillas, spintax y placeholders">📨 Mass DM</button>
+                                    <button class="tm-pill tm-ghost" onclick="abrirScript('TIKTOK_MASS_COMMENT')" title="Comenta una lista de publicaciones por URL">🗨️ Mass Comment</button>
+                                    <button class="tm-pill tm-ghost" onclick="abrirScript('TIKTOK_LIST_PACKAGES')" title="Comprueba qué apps objetivo hay instaladas, clones incluidos">📦 App Packages</button>
                                 </div>
 
                                 <!-- Comandos ADB sueltos: no son scripts, son acciones de una sola pulsación. -->
                                 <div class="tm-sep">Comandos directos</div>
-                                <button class="action-btn blue" onclick="quickAction('TIKMATRIX_OPEN_TIKTOK')" title="Abre la app de TikTok (Musically/Aweme) directamente en el feed principal">🎵 Abrir TikTok</button>
-                                <button class="action-btn blue" onclick="quickAction('TIKMATRIX_BROWSE_FEED', { count: 5 })" title="Desliza orgánicamente por 5 videos del feed con pausas humanas">👀 Navegar Feed</button>
-                                <button class="action-btn blue" onclick="quickAction('TIKMATRIX_LIKE_FEED')" title="Envía Me Gusta (doble toque) a la publicación en pantalla">❤️ Dar Me Gusta</button>
-                                <button class="action-btn blue" onclick="quickAction('TIKMATRIX_FAVORITE_VIDEO')" title="Guarda la publicación activa en Favoritos">⭐ Guardar Favorito</button>
-                                <button class="action-btn blue" onclick="promptTikMatrixComment()" title="Comenta la publicación activa con el texto que desees">💬 Comentar publicación</button>
-                                <button class="action-btn blue" onclick="promptTikMatrixFollowUser()" title="Busca el perfil de un usuario y le da a Seguir">👤 Seguir Usuario</button>
-                                <button class="action-btn blue" onclick="promptTikMatrixSendDM()" title="Envía un mensaje privado directo (DM)">✉️ Enviar DM</button>
-                                <button class="action-btn blue" onclick="quickAction('TIKMATRIX_WATCHER_TICK')" title="Escanea y cierra popups molestos (Permitir, Entendido, Ahora no)">🛡️ Cerrar Popups</button>
-                                <button class="action-btn blue" onclick="promptTikMatrixSetText()" title="Envía texto instantáneo sin abrir el teclado nativo usando ADB_SET_TEXT">⌨️ Inyectar texto</button>
-                                <button class="action-btn blue" onclick="quickAction('TIKMATRIX_CLEAR_TEXT')" title="Limpia el texto del campo enfocado mediante ADB_CLEAR_TEXT">🧹 Limpiar campo</button>
-                                <button class="action-btn blue" onclick="promptTikMatrixSimulateTyping()" title="Simula el tipeo de caracteres humano con retardos aleatorios">✍️ Tipeo humano</button>
+                                <button class="action-btn blue" onclick="quickAction('TIKTOK_OPEN_TIKTOK')" title="Abre la app de TikTok (Musically/Aweme) directamente en el feed principal">🎵 Abrir TikTok</button>
+                                <button class="action-btn blue" onclick="quickAction('TIKTOK_BROWSE_FEED', { count: 5 })" title="Desliza orgánicamente por 5 videos del feed con pausas humanas">👀 Navegar Feed</button>
+                                <button class="action-btn blue" onclick="quickAction('TIKTOK_LIKE_FEED')" title="Envía Me Gusta (doble toque) a la publicación en pantalla">❤️ Dar Me Gusta</button>
+                                <button class="action-btn blue" onclick="quickAction('TIKTOK_FAVORITE_VIDEO')" title="Guarda la publicación activa en Favoritos">⭐ Guardar Favorito</button>
+                                <button class="action-btn blue" onclick="promptComentar()" title="Comenta la publicación activa con el texto que desees">💬 Comentar publicación</button>
+                                <button class="action-btn blue" onclick="promptSeguirUsuario()" title="Busca el perfil de un usuario y le da a Seguir">👤 Seguir Usuario</button>
+                                <button class="action-btn blue" onclick="promptEnviarDM()" title="Envía un mensaje privado directo (DM)">✉️ Enviar DM</button>
+                                <button class="action-btn blue" onclick="quickAction('TIKTOK_WATCHER_TICK')" title="Escanea y cierra popups molestos (Permitir, Entendido, Ahora no)">🛡️ Cerrar Popups</button>
+                                <button class="action-btn blue" onclick="promptInyectarTexto()" title="Envía texto instantáneo sin abrir el teclado nativo usando ADB_SET_TEXT">⌨️ Inyectar texto</button>
+                                <button class="action-btn blue" onclick="quickAction('TIKTOK_CLEAR_TEXT')" title="Limpia el texto del campo enfocado mediante ADB_CLEAR_TEXT">🧹 Limpiar campo</button>
+                                <button class="action-btn blue" onclick="promptTipeoHumano()" title="Simula el tipeo de caracteres humano con retardos aleatorios">✍️ Tipeo humano</button>
 
                                 <div class="tm-sep">Proxy</div>
                                 <button class="action-btn blue" onclick="promptConfigureProxyRotation()" title="Configura la URL de refresco/rotación de IP para los dispositivos">🔄 Configurar Rotación Proxy</button>
-                                <button class="action-btn blue" onclick="quickAction('TIKMATRIX_ROTATE_PROXY')" title="Solicita una nueva IP llamando a la URL de rotación configurada">🌐 Rotar IP ahora</button>
-                                <button class="action-btn" style="grid-column: 1 / -1; background:#b91c1c; color:#fff; font-weight:700;" onclick="quickAction('TIKMATRIX_CLEAR_DCIM')" title="Limpia las imágenes y vídeos procesados de la galería DCIM y tarjeta SD">🗑️ Limpiar fotos y vídeos DCIM</button>
+                                <button class="action-btn blue" onclick="quickAction('TIKTOK_ROTATE_PROXY')" title="Solicita una nueva IP llamando a la URL de rotación configurada">🌐 Rotar IP ahora</button>
+                                <button class="action-btn" style="grid-column: 1 / -1; background:#b91c1c; color:#fff; font-weight:700;" onclick="quickAction('TIKTOK_CLEAR_DCIM')" title="Limpia las imágenes y vídeos procesados de la galería DCIM y tarjeta SD">🗑️ Limpiar fotos y vídeos DCIM</button>
                             </div>
 
                             <!-- SCRIPTS DE SPOTIFY -->
                             <div id="actionSubTab-spotify" class="action-buttons-grid" style="display:none;">
                                 <div class="tm-pills">
-                                    <button class="tm-pill tm-spotify" onclick="abrirScriptTikMatrix('SPOTIFY_LOGIN')" title="Entra con correo o usuario y contraseña">🔑 Login</button>
-                                    <button class="tm-pill tm-spotify" onclick="abrirScriptTikMatrix('SPOTIFY_MATCH_ACCOUNT')" title="Lee la cuenta con la sesión iniciada">👥 Match Account</button>
-                                    <button class="tm-pill tm-spotify" onclick="abrirScriptTikMatrix('SPOTIFY_PLAY_URL')" title="Abre un enlace de Spotify y lo reproduce">▶️ Play URL</button>
-                                    <button class="tm-pill tm-spotify" onclick="abrirScriptTikMatrix('SPOTIFY_SEARCH_PLAY')" title="Busca y reproduce el primer resultado">🔎 Search &amp; Play</button>
-                                    <button class="tm-pill tm-spotify" onclick="abrirScriptTikMatrix('SPOTIFY_WARMUP')" title="Escucha desde la portada con probabilidades de guardar, seguir y saltar">🔥 Warmup</button>
-                                    <button class="tm-pill tm-spotify" onclick="abrirScriptTikMatrix('SPOTIFY_FOLLOW_ARTIST')" title="Sigue artistas por nombre o enlace">✅ Follow Artist</button>
-                                    <button class="tm-pill tm-spotify" onclick="abrirScriptTikMatrix('SPOTIFY_SAVE_TRACK')" title="Guarda una pista en Tus me gusta">💚 Save Track</button>
-                                    <button class="tm-pill tm-spotify" onclick="abrirScriptTikMatrix('SPOTIFY_CREATE_PLAYLIST')" title="Crea una playlist nueva">➕ Create Playlist</button>
-                                    <button class="tm-pill tm-spotify" onclick="abrirScriptTikMatrix('SPOTIFY_ADD_TO_PLAYLIST')" title="Agrega una pista a una playlist existente">📃 Add to Playlist</button>
-                                    <button class="tm-pill tm-spotify" onclick="abrirScriptTikMatrix('SPOTIFY_PLAYBACK')" title="Reproducir, pausar, siguiente, aleatorio, repetir">🎛️ Playback</button>
-                                    <button class="tm-pill tm-green" onclick="abrirScriptTikMatrix('SPOTIFY_STREAM_CAMPAIGN')" title="Recorre una lista de enlaces reproduciendo cada uno">🚀 Stream Campaign</button>
-                                    <button class="tm-pill tm-amber" onclick="abrirScriptTikMatrix('SPOTIFY_TEST_SCRIPT')" title="Comprueba sin efectos: app, lectura de pantalla, sesión y pista">🧪 Test Script</button>
-                                    <button class="tm-pill tm-red" onclick="detenerTareasTikMatrix('com.spotify.music')" title="Cancela las tareas en curso y cierra Spotify">⏹️ Stop Task</button>
+                                    <button class="tm-pill tm-spotify" onclick="abrirScript('SPOTIFY_LOGIN')" title="Entra con correo o usuario y contraseña">🔑 Login</button>
+                                    <button class="tm-pill tm-spotify" onclick="abrirScript('SPOTIFY_MATCH_ACCOUNT')" title="Lee la cuenta con la sesión iniciada">👥 Match Account</button>
+                                    <button class="tm-pill tm-spotify" onclick="abrirScript('SPOTIFY_PLAY_URL')" title="Abre un enlace de Spotify y lo reproduce">▶️ Play URL</button>
+                                    <button class="tm-pill tm-spotify" onclick="abrirScript('SPOTIFY_SEARCH_PLAY')" title="Busca y reproduce el primer resultado">🔎 Search &amp; Play</button>
+                                    <button class="tm-pill tm-spotify" onclick="abrirScript('SPOTIFY_WARMUP')" title="Escucha desde la portada con probabilidades de guardar, seguir y saltar">🔥 Warmup</button>
+                                    <button class="tm-pill tm-spotify" onclick="abrirScript('SPOTIFY_FOLLOW_ARTIST')" title="Sigue artistas por nombre o enlace">✅ Follow Artist</button>
+                                    <button class="tm-pill tm-spotify" onclick="abrirScript('SPOTIFY_SAVE_TRACK')" title="Guarda una pista en Tus me gusta">💚 Save Track</button>
+                                    <button class="tm-pill tm-spotify" onclick="abrirScript('SPOTIFY_CREATE_PLAYLIST')" title="Crea una playlist nueva">➕ Create Playlist</button>
+                                    <button class="tm-pill tm-spotify" onclick="abrirScript('SPOTIFY_ADD_TO_PLAYLIST')" title="Agrega una pista a una playlist existente">📃 Add to Playlist</button>
+                                    <button class="tm-pill tm-spotify" onclick="abrirScript('SPOTIFY_PLAYBACK')" title="Reproducir, pausar, siguiente, aleatorio, repetir">🎛️ Playback</button>
+                                    <button class="tm-pill tm-green" onclick="abrirScript('SPOTIFY_STREAM_CAMPAIGN')" title="Recorre una lista de enlaces reproduciendo cada uno">🚀 Stream Campaign</button>
+                                    <button class="tm-pill tm-amber" onclick="abrirScript('SPOTIFY_TEST_SCRIPT')" title="Comprueba sin efectos: app, lectura de pantalla, sesión y pista">🧪 Test Script</button>
+                                    <button class="tm-pill tm-red" onclick="detenerTareas('com.spotify.music')" title="Cancela las tareas en curso y cierra Spotify">⏹️ Stop Task</button>
                                 </div>
 
                                 <div class="tm-sep">Comandos directos</div>
@@ -182,17 +182,17 @@
                             <!-- SCRIPTS DE TWITCH -->
                             <div id="actionSubTab-twitch" class="action-buttons-grid" style="display:none;">
                                 <div class="tm-pills">
-                                    <button class="tm-pill tm-twitch" onclick="abrirScriptTikMatrix('TWITCH_LOGIN')" title="Entra con usuario y contraseña">🔑 Login</button>
-                                    <button class="tm-pill tm-twitch" onclick="abrirScriptTikMatrix('TWITCH_MATCH_ACCOUNT')" title="Lee la cuenta con la sesión iniciada">👥 Match Account</button>
-                                    <button class="tm-pill tm-twitch" onclick="abrirScriptTikMatrix('TWITCH_WATCH_STREAM')" title="Abre un canal y lo ve el tiempo indicado">📺 Watch Stream</button>
-                                    <button class="tm-pill tm-twitch" onclick="abrirScriptTikMatrix('TWITCH_WARMUP')" title="Recorre el feed de descubrimiento viendo streams">🔥 Warmup</button>
-                                    <button class="tm-pill tm-twitch" onclick="abrirScriptTikMatrix('TWITCH_FOLLOW_CHANNEL')" title="Sigue una lista de canales">✅ Follow Channel</button>
-                                    <button class="tm-pill tm-twitch" onclick="abrirScriptTikMatrix('TWITCH_UNFOLLOW_CHANNEL')" title="Deja de seguir una lista de canales">🚫 Unfollow Channel</button>
-                                    <button class="tm-pill tm-twitch" onclick="abrirScriptTikMatrix('TWITCH_CHAT_MESSAGE')" title="Escribe en el chat de un canal">💬 Chat Message</button>
-                                    <button class="tm-pill tm-twitch" onclick="abrirScriptTikMatrix('TWITCH_PLAYBACK')" title="Sonido, compartir y menú del reproductor">🎛️ Playback</button>
-                                    <button class="tm-pill tm-green" onclick="abrirScriptTikMatrix('TWITCH_WATCH_CAMPAIGN')" title="Recorre una lista de canales viendo cada uno">🚀 Watch Campaign</button>
-                                    <button class="tm-pill tm-amber" onclick="abrirScriptTikMatrix('TWITCH_TEST_SCRIPT')" title="Comprueba sin efectos: app, lectura de pantalla, sesión y directo">🧪 Test Script</button>
-                                    <button class="tm-pill tm-red" onclick="detenerTareasTikMatrix('tv.twitch.android.app')" title="Cancela las tareas en curso y cierra Twitch">⏹️ Stop Task</button>
+                                    <button class="tm-pill tm-twitch" onclick="abrirScript('TWITCH_LOGIN')" title="Entra con usuario y contraseña">🔑 Login</button>
+                                    <button class="tm-pill tm-twitch" onclick="abrirScript('TWITCH_MATCH_ACCOUNT')" title="Lee la cuenta con la sesión iniciada">👥 Match Account</button>
+                                    <button class="tm-pill tm-twitch" onclick="abrirScript('TWITCH_WATCH_STREAM')" title="Abre un canal y lo ve el tiempo indicado">📺 Watch Stream</button>
+                                    <button class="tm-pill tm-twitch" onclick="abrirScript('TWITCH_WARMUP')" title="Recorre el feed de descubrimiento viendo streams">🔥 Warmup</button>
+                                    <button class="tm-pill tm-twitch" onclick="abrirScript('TWITCH_FOLLOW_CHANNEL')" title="Sigue una lista de canales">✅ Follow Channel</button>
+                                    <button class="tm-pill tm-twitch" onclick="abrirScript('TWITCH_UNFOLLOW_CHANNEL')" title="Deja de seguir una lista de canales">🚫 Unfollow Channel</button>
+                                    <button class="tm-pill tm-twitch" onclick="abrirScript('TWITCH_CHAT_MESSAGE')" title="Escribe en el chat de un canal">💬 Chat Message</button>
+                                    <button class="tm-pill tm-twitch" onclick="abrirScript('TWITCH_PLAYBACK')" title="Sonido, compartir y menú del reproductor">🎛️ Playback</button>
+                                    <button class="tm-pill tm-green" onclick="abrirScript('TWITCH_WATCH_CAMPAIGN')" title="Recorre una lista de canales viendo cada uno">🚀 Watch Campaign</button>
+                                    <button class="tm-pill tm-amber" onclick="abrirScript('TWITCH_TEST_SCRIPT')" title="Comprueba sin efectos: app, lectura de pantalla, sesión y directo">🧪 Test Script</button>
+                                    <button class="tm-pill tm-red" onclick="detenerTareas('tv.twitch.android.app')" title="Cancela las tareas en curso y cierra Twitch">⏹️ Stop Task</button>
                                 </div>
 
                                 <div class="tm-sep">Comandos directos</div>
@@ -350,8 +350,8 @@
             <div id="tmScriptFields" class="tm-fields"></div>
             <p id="tmScriptTargets" class="muted-text"></p>
             <div class="modal-actions">
-                <button class="btn btn-secondary-sm" onclick="cerrarScriptTikMatrix()">Cancelar</button>
-                <button class="btn btn-primary-sm" style="padding: 6px 14px;" onclick="lanzarScriptTikMatrix()">Ejecutar script</button>
+                <button class="btn btn-secondary-sm" onclick="cerrarScript()">Cancelar</button>
+                <button class="btn btn-primary-sm" style="padding: 6px 14px;" onclick="lanzarScript()">Ejecutar script</button>
             </div>
         </div>
     </div>
@@ -398,7 +398,7 @@
 
     <script src="/dashboard/js/mirror-client.js?v=20260819-v2"></script>
     <script src="/dashboard/js/dashboard.js?v=20260725-v8"></script>
-    <script src="/dashboard/js/tikmatrix-ui.js?v=20260819-v3"></script>
+    <script src="/dashboard/js/scripts-ui.js?v=20260819-v4"></script>
     <script src="/dashboard/js/routines.js?v=20260725-v8"></script>
     <script src="/dashboard/js/monitor-ui.js?v=20260725-v6"></script>
     <script src="/dashboard/js/views-ui.js?v=20260725-v7"></script>

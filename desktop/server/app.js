@@ -345,7 +345,7 @@ function createServer(db, routerPort, apiToken = '') {
     const dev = db.get(`SELECT * FROM devices WHERE adb_serial = ? OR serial_number = ? OR id = ?`, [key, key, key]);
     const serial = (dev && dev.adb_serial) || key;
     try {
-      const result = await adb.execute(serial, 'TIKMATRIX_ROTATE_PROXY', {});
+      const result = await adb.execute(serial, 'TIKTOK_ROTATE_PROXY', {});
       res.json(result);
     } catch (e) {
       res.status(500).json({ success: false, message: `Fallo al rotar IP: ${e.message}` });

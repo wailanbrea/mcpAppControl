@@ -1,8 +1,8 @@
 {
   "name": "mcp-control-bsolutions-v2",
-  "productName": "MCP Control Bsolutions V2",
+  "productName": "Bsolutions Control App",
   "version": "2.1.5",
-  "description": "MCP Control Bsolutions V2 — Panel de control de granja Android y Fleet Router",
+  "description": "Bsolutions Control App — Panel de control de granja Android, espejo en tiempo real y suites de automatización",
   "main": "main.js",
   "author": "MCP AppControl",
   "scripts": {
@@ -25,7 +25,7 @@
   },
   "build": {
     "appId": "dev.mcp.appcontrol",
-    "productName": "MCP AppControl",
+    "productName": "Bsolutions Control App",
     "npmRebuild": false,
     "asarUnpack": [
       "**/better-sqlite3/**",

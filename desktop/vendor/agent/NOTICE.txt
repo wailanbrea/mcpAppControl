@@ -1,0 +1,23 @@
+mcp-agent.apk — Agente Bsolutions para Android
+Parte de este proyecto; el código fuente está en android-agent/.
+
+Compilación de RELEASE: 2,3 MB frente a los 6,3 MB de la de depuración (R8 recorta
+un 62%) y su paquete es dev.mcp.agent, sin el sufijo .debug.
+
+Se instala en los teléfonos para poder leer la pantalla: `uiautomator dump`,
+lanzado desde el PC, muere en buena parte del parque ("Killed") y en apps con
+vídeo continuo nunca alcanza el estado idle que necesita.
+
+El escritorio lo instala solo al detectar un teléfono que no lo tenga. Lo que NO
+puede automatizar es el permiso de accesibilidad: Android exige que lo conceda
+una persona desde Ajustes.
+
+Va firmado con el keystore de depuración del equipo, porque se distribuye desde
+el propio escritorio y no por Play Store. Si algún día se publica fuera, hay que
+cambiarlo por una clave propia en android-agent/app/build.gradle.kts; al hacerlo,
+los teléfonos con la versión anterior tendrán que desinstalar antes de actualizar,
+porque la firma no coincidirá.
+
+Para regenerarlo:
+    cd android-agent && ./gradlew.bat assembleRelease
+    cp app/build/outputs/apk/release/app-release.apk ../desktop/vendor/agent/mcp-agent.apk

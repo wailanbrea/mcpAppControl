@@ -64,6 +64,10 @@
       {
         "from": "vendor/scrcpy",
         "to": "scrcpy"
+      },
+      {
+        "from": "vendor/agent",
+        "to": "agent"
       }
     ],
     "win": {

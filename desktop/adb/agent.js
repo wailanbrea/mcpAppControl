@@ -12,6 +12,8 @@
 // /jsonrpc/0— y deja `uiautomator dump` como último recurso.
 
 const { execFile } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
 // Agentes que sabemos consultar, en orden de preferencia. Cada uno escucha en su
 // propio puerto DENTRO del teléfono; el Agente Bsolutions usa el 9009 para no
@@ -141,4 +143,96 @@ async function disponible(serial) {
 
 function olvidar(serial) { sesiones.delete(serial); }
 
-module.exports = { init, dump, disponible, asegurar, jsonrpc, olvidar, AGENTES_POR_DEFECTO };
+// ------------------------------------------------ instalación automática
+
+// Los dos paquetes que puede tener el Agente Bsolutions: la compilación de
+// depuración añade el sufijo .debug a su applicationId.
+const PAQUETES_PROPIOS = ['dev.mcp.agent', 'dev.mcp.agent.debug'];
+
+// Serials a los que ya se intentó instalar en esta sesión. Sin esto, un teléfono
+// donde la instalación falla la reintentaría en cada reconexión.
+const intentados = new Map();   // serial -> { veces, ultimo }
+const MAX_INTENTOS = 2;
+
+// Ruta al APK, configurable; si no, la empaquetada y luego la del repositorio.
+const CONFIG_APK = { ruta: null };
+
+// Se prefiere el APK de release: pesa 2,3 MB frente a 6,3 MB del de depuración
+// (R8 recorta el 62%) y su paquete no lleva el sufijo .debug.
+function rutaApkAgente() {
+  const candidatos = [
+    CONFIG_APK.ruta,
+    process.resourcesPath && path.join(process.resourcesPath, 'agent', 'mcp-agent.apk'),
+    path.resolve(__dirname, '..', 'vendor', 'agent', 'mcp-agent.apk'),
+    path.resolve(__dirname, '..', '..', 'android-agent', 'mcp-agent-release.apk'),
+    path.resolve(__dirname, '..', '..', 'android-agent', 'app', 'build', 'outputs', 'apk', 'release', 'app-release.apk'),
+  ].filter(Boolean);
+  for (const c of candidatos) { try { if (fs.existsSync(c)) return c; } catch (_) {} }
+  return null;
+}
+
+// Qué hay instalado en el teléfono y en qué estado.
+async function estadoEnDispositivo(serial) {
+  const salida = await adbCmd(['-s', serial, 'shell', 'pm', 'list', 'packages']).catch(() => '');
+  // Comparación por línea exacta, no por subcadena: "dev.mcp.agent" es prefijo de
+  // "dev.mcp.agent.debug", así que un includes() daba por instalado el paquete
+  // equivocado y luego dumpsys no encontraba su versión.
+  const lista = salida.split(/\r?\n/).map(l => l.replace(/^package:/, '').trim());
+  const instalado = PAQUETES_PROPIOS.find(p => lista.includes(p)) || null;
+
+  let version = null;
+  if (instalado) {
+    const info = await adbCmd(['-s', serial, 'shell', 'dumpsys', 'package', instalado]).catch(() => '');
+    version = (info.match(/versionName=([^\s]+)/) || [])[1] || null;
+  }
+
+  // El servicio de accesibilidad es un permiso que concede la persona en Ajustes:
+  // no se puede otorgar desde aquí, así que solo se informa.
+  const concedidos = await adbCmd(['-s', serial, 'shell', 'settings', 'get', 'secure',
+    'enabled_accessibility_services']).catch(() => '');
+  const accesibilidad = !!instalado && concedidos.includes(`${instalado}/`);
+
+  return { instalado, paquete: instalado, version, accesibilidad };
+}
+
+// Detecta si al teléfono le falta el agente y lo instala. Devuelve qué pasó, para
+// que quien llame pueda informarlo sin volver a consultar.
+async function instalarSiFalta(serial) {
+  const estado = await estadoEnDispositivo(serial);
+  if (estado.instalado) {
+    return { accion: 'ya_instalado', ...estado };
+  }
+
+  const previo = intentados.get(serial) || { veces: 0 };
+  if (previo.veces >= MAX_INTENTOS) {
+    return { accion: 'omitido', motivo: `ya se intentó ${previo.veces} veces sin éxito`, ...estado };
+  }
+
+  const apk = rutaApkAgente();
+  if (!apk) {
+    intentados.set(serial, { veces: MAX_INTENTOS, ultimo: Date.now() });
+    return { accion: 'sin_apk', motivo: 'no se encontró el APK del Agente Bsolutions', ...estado };
+  }
+
+  intentados.set(serial, { veces: previo.veces + 1, ultimo: Date.now() });
+
+  // -g concede de golpe los permisos declarados; la accesibilidad NO entra ahí,
+  // por diseño de Android: esa la tiene que activar una persona.
+  const salida = await adbCmd(['-s', serial, 'install', '-r', '-g', apk], 240000)
+    .catch(e => String(e.message || ''));
+
+  if (!/Success/i.test(salida)) {
+    return { accion: 'fallo', motivo: salida.trim().split('\n')[0] || 'instalación rechazada', ...estado };
+  }
+
+  intentados.delete(serial);
+  const nuevo = await estadoEnDispositivo(serial);
+  return { accion: 'instalado', ...nuevo };
+}
+
+function configurarApk(ruta) { CONFIG_APK.ruta = ruta || null; }
+
+module.exports = {
+  init, dump, disponible, asegurar, jsonrpc, olvidar, AGENTES_POR_DEFECTO,
+  estadoEnDispositivo, instalarSiFalta, configurarApk, rutaApkAgente, PAQUETES_PROPIOS,
+};

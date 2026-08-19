@@ -236,6 +236,7 @@ app.whenReady().then(async () => {
     adb.start({
       backendUrl: backendApi, backendToken: apiToken,
       db,                                        // handle abierto de SQLite: comandos como TIKTOK_ROTATE_PROXY leen su config de la BD
+      autoInstallAgent: true,                    // instala el Agente Bsolutions en los teléfonos que no lo traigan
       wsPort: WS_PORT,                           // para abrir el túnel `adb reverse` que deja al agente alcanzar el router
       frameMaxWidth: 0, frameQuality: 55,        // visor enfocado: resolución NATIVA (para que el toque caiga donde se hace clic) + JPEG
       thumbMaxWidth: 240, thumbQuality: 40, thumbTtlMs: 1500,  // miniaturas del muro (ligeras, escala 40+)

@@ -14,7 +14,7 @@
 
 # Keep Coroutines classes
 -dontwarn kotlinx.coroutines.**
--keep namespace kotlinx.coroutines.** { *; }
+-keep class kotlinx.coroutines.** { *; }
 
 # Keep Timber logging
 -dontwarn com.jakewharton.timber.**
@@ -30,3 +30,13 @@
     private void writeObject(java.io.ObjectOutputStream);
     private void readObject(java.io.ObjectInputStream);
 }
+
+# Componentes propios: el sistema los referencia POR NOMBRE.
+# El permiso de accesibilidad se guarda en Ajustes como la cadena
+# "dev.mcp.agent.debug/dev.mcp.agent.MCPAccessibilityService"; si R8 renombrara
+# esa clase, el permiso concedido dejaría de casar y el agente quedaría inerte
+# sin ningún error visible.
+-keep class dev.mcp.agent.MCPAccessibilityService { *; }
+-keep class dev.mcp.agent.MCPForegroundService { *; }
+-keep class dev.mcp.agent.MainActivity { *; }
+-keep class dev.mcp.agent.HierarchyServer { *; }

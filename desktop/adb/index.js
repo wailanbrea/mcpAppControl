@@ -16,7 +16,7 @@ let settings = null; try { settings = require('../server/settings'); } catch (_)
 const HJ = (x, y) => settings ? settings.jitterXY(x, y) : { x, y };
 const HD = (ms) => settings ? settings.varyDuration(ms) : ms;
 
-let CONFIG = { backendUrl: 'http://127.0.0.1:8733/api/v1', backendToken: '', adbPath: null, db: null, wsPort: 6011 };
+let CONFIG = { backendUrl: 'http://127.0.0.1:8733/api/v1', backendToken: '', adbPath: null, db: null, wsPort: 6011, autoInstallAgent: true };
 
 // Mapeo de plataforma a package name para LOGIN_GENERIC, BAN_RECOVERY, etc.
 const PLATFORM_PACKAGES = {
@@ -144,6 +144,7 @@ async function registerDevice(serial) {
   console.log(`[adb] dispositivo USB registrado: ${serial} (${model})`);
   try { const router = require('../router'); router.broadcast('device_connected', { serial_number: serial, name: model }); } catch (_) {}
   abrirTunelDelRouter(serial);
+  asegurarAgente(serial);
   reapplyProxy(serial);
   applyStability(serial);   // estabilidad inmediata al conectar
   applyTimeConfig(serial);  // hora/fecha estable al conectar
@@ -168,6 +169,40 @@ async function abrirTunelDelRouter(serial) {
     console.error(`[adb] no se pudo abrir el túnel al router en ${serial}: ${e.message}`);
   }
   limpiarTunelesHuerfanos(serial);
+}
+
+// Comprueba si el teléfono trae el Agente Bsolutions y lo instala si le falta.
+//
+// Sin agente no se puede leer la pantalla, y sin eso ningún script encuentra sus
+// controles: es la diferencia entre un teléfono operativo y uno inerte. Por eso se
+// revisa en cuanto aparece el dispositivo, sin esperar a que alguien se acuerde.
+//
+// Lo que NO se puede automatizar es el permiso de accesibilidad: Android exige que
+// lo conceda una persona en Ajustes, y con razón. Se informa de que falta.
+async function asegurarAgente(serial) {
+  if (CONFIG.autoInstallAgent === false) return;
+  try {
+    const r = await agent.instalarSiFalta(serial);
+    switch (r.accion) {
+      case 'instalado':
+        console.log(`[agente] instalado en ${serial} (${r.paquete} ${r.version || ''})` +
+          (r.accesibilidad ? '' : ' — falta activar su servicio de accesibilidad en Ajustes'));
+        break;
+      case 'ya_instalado':
+        if (!r.accesibilidad) {
+          console.log(`[agente] ${serial} tiene el agente (${r.version || 'versión desconocida'}) pero su servicio de accesibilidad está desactivado`);
+        }
+        break;
+      case 'fallo':
+        console.error(`[agente] no se pudo instalar en ${serial}: ${r.motivo}`);
+        break;
+      case 'sin_apk':
+        console.error(`[agente] ${r.motivo}`);
+        break;
+    }
+  } catch (e) {
+    console.error(`[agente] revisión fallida en ${serial}: ${e.message}`);
+  }
 }
 
 // Los túneles del espejo se retiran al cerrar sesión, pero si el proceso muere de
@@ -740,6 +775,24 @@ async function execute(serial, command, params) {
             ? `Instalado en el dispositivo: ${instalados.join(', ')}${fallos.length ? ` · pendiente: ${fallos.join('; ')}` : ''}`
             : `No se pudo instalar ningún agente. ${fallos.join('; ')}`,
           data: { instalados, fallos },
+        };
+      }
+
+      // Estado del agente en el teléfono: si está, con qué versión, y si su
+      // servicio de accesibilidad está activo (que es lo único que no se puede
+      // automatizar y suele ser lo que falta).
+      case 'AGENT_STATUS': {
+        const e = await agent.estadoEnDispositivo(serial);
+        const partes = [];
+        if (!e.instalado) partes.push('agente NO instalado');
+        else {
+          partes.push(`agente ${e.version || 'instalado'} (${e.paquete})`);
+          partes.push(e.accesibilidad ? 'accesibilidad activa' : 'accesibilidad DESACTIVADA');
+        }
+        return {
+          success: !!e.instalado && e.accesibilidad,
+          message: partes.join(' · '),
+          data: e,
         };
       }
 

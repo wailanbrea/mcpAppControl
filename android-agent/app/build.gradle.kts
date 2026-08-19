@@ -17,9 +17,27 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // Firma del release con el keystore de depuración del equipo.
+    //
+    // Sin firma, `assembleRelease` produce un APK que Android no deja instalar, y
+    // el agente se distribuye desde el propio escritorio, no por Play Store. Usar
+    // el keystore que ya existe evita inventar una credencial nueva y guardarla en
+    // el repositorio. Si algún día se publica fuera, hay que cambiarlo por una
+    // clave propia: al hacerlo, los teléfonos con la versión anterior necesitarán
+    // desinstalar antes de actualizar, porque la firma no coincidirá.
+    signingConfigs {
+        create("interna") {
+            storeFile = file(System.getProperty("user.home") + "/.android/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
+            signingConfig = signingConfigs.getByName("interna")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

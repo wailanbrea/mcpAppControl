@@ -155,7 +155,7 @@ const intentados = new Map();   // serial -> { veces, ultimo }
 const MAX_INTENTOS = 2;
 
 // Ruta al APK, configurable; si no, la empaquetada y luego la del repositorio.
-const CONFIG_APK = { ruta: null };
+const CONFIG_APK = { ruta: null, wsPort: 6011 };
 
 // Se prefiere el APK de release: pesa 2,3 MB frente a 6,3 MB del de depuración
 // (R8 recorta el 62%) y su paquete no lleva el sufijo .debug.
@@ -227,10 +227,35 @@ async function instalarSiFalta(serial) {
 
   intentados.delete(serial);
   const nuevo = await estadoEnDispositivo(serial);
-  return { accion: 'instalado', ...nuevo };
+  const aprovisionado = await aprovisionar(serial, nuevo.paquete);
+  return { accion: 'instalado', aprovisionado, ...nuevo };
 }
 
-function configurarApk(ruta) { CONFIG_APK.ruta = ruta || null; }
+// Le dice al agente recién instalado a qué servidor apuntar y con qué serial
+// identificarse, lanzándolo con esos datos.
+//
+// Sin esto se autoasigna un serial propio (device-XXXX) que no coincide con el
+// serial ADB, y al conectar aparecería como un SEGUNDO dispositivo en el panel.
+// El agente solo acepta estos datos en su primera ejecución, así que esto es
+// exactamente el momento.
+async function aprovisionar(serial, paquete) {
+  if (!paquete) return false;
+  try {
+    await adbCmd(['-s', serial, 'shell', 'am', 'start',
+      '-n', `${paquete}/dev.mcp.agent.MainActivity`,
+      '--es', 'server_url', `ws://127.0.0.1:${CONFIG_APK.wsPort}`,
+      '--es', 'serial_number', serial], 20000);
+    return true;
+  } catch (e) {
+    console.error(`[agente] no se pudo aprovisionar ${serial}: ${e.message}`);
+    return false;
+  }
+}
+
+function configurarApk({ ruta, wsPort } = {}) {
+  if (ruta !== undefined) CONFIG_APK.ruta = ruta || null;
+  if (wsPort) CONFIG_APK.wsPort = wsPort;
+}
 
 module.exports = {
   init, dump, disponible, asegurar, jsonrpc, olvidar, AGENTES_POR_DEFECTO,

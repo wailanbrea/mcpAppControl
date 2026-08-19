@@ -51,6 +51,8 @@ class MainActivity : Activity() {
         initializeViews()
         registerServiceListeners()
         checkAccessibilityStatus()
+
+        aprovisionarSiEsPrimeraVez(intent)
         updateDeviceInformation()
 
         val prefs = getSharedPreferences("mcp_agent_prefs", MODE_PRIVATE)
@@ -101,6 +103,39 @@ class MainActivity : Activity() {
                 addLogEntry("Comando: $command -> ${if (success) "ok" else "fallo"}")
             }
         }
+    }
+
+    /**
+     * Aprovisionamiento inicial: el escritorio lanza la app justo tras instalarla
+     * pasándole el servidor y el número de serie del dispositivo.
+     *
+     * Sin esto, una instalación nueva se autoasigna un serial propio (device-XXXX)
+     * que no coincide con el serial ADB, y al conectar aparecería como un SEGUNDO
+     * dispositivo en el panel, duplicando el que ya existe.
+     *
+     * Solo se acepta en la primera ejecución, cuando todavía no hay nada guardado.
+     * MainActivity está exportada por ser la de arranque, así que sin ese límite
+     * cualquier app instalada podría reapuntar el agente a otro servidor y hacerse
+     * con el control del teléfono. Una vez configurado, se cambia desde la propia
+     * pantalla de ajustes y no por intent.
+     */
+    private fun aprovisionarSiEsPrimeraVez(intent: Intent?) {
+        if (intent == null) return
+        val prefs = getSharedPreferences("mcp_agent_prefs", MODE_PRIVATE)
+        if (prefs.contains("server_url") || prefs.contains("serial_number")) return
+
+        val servidor = intent.getStringExtra("server_url")?.trim()
+        val serial = intent.getStringExtra("serial_number")?.trim()
+        if (servidor.isNullOrEmpty() && serial.isNullOrEmpty()) return
+
+        prefs.edit().apply {
+            if (!servidor.isNullOrEmpty()) putString("server_url", servidor)
+            if (!serial.isNullOrEmpty()) putString("serial_number", serial)
+            putBoolean("auto_connect", true)
+            apply()
+        }
+        Log.i("MainActivity", "Aprovisionado desde el escritorio: servidor=$servidor serial=$serial")
+        addLogEntry("Configurado por el escritorio")
     }
 
     private fun currentSerialNumber(): String {

@@ -1623,6 +1623,7 @@ function start(config) {
   needsInitialReconciliation = true;
   console.log(`[adb] usando adb: ${resolveAdb()}`);
   agent.init({ adbResolver: resolveAdb });
+  agent.configurarApk({ wsPort: CONFIG.wsPort });   // el agente recién instalado apunta al router por el túnel
   poll();
   pollTimer = setInterval(poll, 1500);
 }

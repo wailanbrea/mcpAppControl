@@ -20,7 +20,11 @@ class MainActivity : Activity() {
     companion object {
         private const val TAG = "MainActivity"
         private const val ACCESSIBILITY_SETTINGS_REQUEST_CODE = 1001
-        private const val DEFAULT_SERVER_URL = "ws://10.0.2.2:6001"
+        // 127.0.0.1 + adb reverse: el escritorio abre el túnel al detectar el teléfono,
+        // así el router sigue atado a loopback y no queda expuesto en la red del local.
+        // El valor anterior (10.0.2.2:6001) era la dirección del emulador y un puerto
+        // antiguo: en un teléfono real no podía conectar nunca.
+        private const val DEFAULT_SERVER_URL = "ws://127.0.0.1:6011"
     }
 
     // UI Elements

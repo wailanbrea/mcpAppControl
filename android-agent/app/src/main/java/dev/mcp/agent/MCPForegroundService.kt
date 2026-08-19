@@ -58,7 +58,7 @@ class MCPForegroundService : Service() {
             ACTION_START_AGENT -> {
                 startForeground(NOTIFICATION_ID, createNotification("Conectando..."))
                 startAgent(
-                    intent.getStringExtra(EXTRA_SERVER_URL) ?: "ws://10.0.2.2:6001",
+                    intent.getStringExtra(EXTRA_SERVER_URL) ?: "ws://127.0.0.1:6011",
                     intent.getStringExtra(EXTRA_SERIAL) ?: "",
                     intent.getStringExtra(EXTRA_TOKEN) ?: ""
                 )

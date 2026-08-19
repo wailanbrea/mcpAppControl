@@ -16,7 +16,7 @@ let settings = null; try { settings = require('../server/settings'); } catch (_)
 const HJ = (x, y) => settings ? settings.jitterXY(x, y) : { x, y };
 const HD = (ms) => settings ? settings.varyDuration(ms) : ms;
 
-let CONFIG = { backendUrl: 'http://127.0.0.1:8733/api/v1', backendToken: '', adbPath: null, db: null };
+let CONFIG = { backendUrl: 'http://127.0.0.1:8733/api/v1', backendToken: '', adbPath: null, db: null, wsPort: 6011 };
 
 // Mapeo de plataforma a package name para LOGIN_GENERIC, BAN_RECOVERY, etc.
 const PLATFORM_PACKAGES = {
@@ -143,10 +143,48 @@ async function registerDevice(serial) {
   });
   console.log(`[adb] dispositivo USB registrado: ${serial} (${model})`);
   try { const router = require('../router'); router.broadcast('device_connected', { serial_number: serial, name: model }); } catch (_) {}
+  abrirTunelDelRouter(serial);
   reapplyProxy(serial);
   applyStability(serial);   // estabilidad inmediata al conectar
   applyTimeConfig(serial);  // hora/fecha estable al conectar
   if (serial.includes(':') && !knownTcp.has(serial)) knownTcp.set(serial, 0); // vigilar para reconexión
+}
+
+// Da al teléfono una ruta hasta el Command Router.
+//
+// El router se ata a 127.0.0.1 a propósito: acepta órdenes que controlan el
+// dispositivo y hoy va sin token, así que abrirlo a la red del local sería dejar
+// un mando a distancia sin llave. Con `adb reverse`, el propio teléfono ve el
+// puerto en SU localhost y nadie más lo alcanza.
+//
+// Sin esto el agente no podía conectar nunca: apuntara a donde apuntara, el
+// router rechaza cualquier conexión que no venga del propio PC.
+async function abrirTunelDelRouter(serial) {
+  const puerto = CONFIG.wsPort;
+  if (!puerto) return;
+  try {
+    await adb(['-s', serial, 'reverse', `tcp:${puerto}`, `tcp:${puerto}`], { timeout: 10000 });
+  } catch (e) {
+    console.error(`[adb] no se pudo abrir el túnel al router en ${serial}: ${e.message}`);
+  }
+  limpiarTunelesHuerfanos(serial);
+}
+
+// Los túneles del espejo se retiran al cerrar sesión, pero si el proceso muere de
+// golpe quedan colgados en el dispositivo y se van acumulando entre reinicios.
+// Al conectar se barren los que ya no corresponden a ninguna sesión viva.
+async function limpiarTunelesHuerfanos(serial) {
+  try {
+    const salida = String(await adb(['-s', serial, 'reverse', '--list'], { timeout: 10000 }));
+    const viejos = salida.split(/\r?\n/)
+      .map(l => (l.match(/(localabstract:scrcpy_[0-9a-f]+)/) || [])[1])
+      .filter(Boolean);
+    if (!viejos.length) return;
+    for (const t of viejos) {
+      await adb(['-s', serial, 'reverse', '--remove', t], { timeout: 8000 }).catch(() => {});
+    }
+    console.log(`[adb] ${viejos.length} túneles de espejo huérfanos retirados de ${serial}`);
+  } catch (_) { /* no es crítico */ }
 }
 
 // Aplica al instante la base de estabilidad: mantener el teléfono despierto mientras

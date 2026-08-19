@@ -51,16 +51,22 @@ class MCPAccessibilityService : AccessibilityService() {
         }
         serviceInfo = info
 
+        // Servidor de jerarquía: el escritorio lee la pantalla por aquí porque
+        // `uiautomator dump`, lanzado desde el PC, muere en estos teléfonos.
+        HierarchyServer.start()
+
         Log.i(TAG, "Accessibility Service configured successfully")
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
         instance = null
+        HierarchyServer.stop()
         return super.onUnbind(intent)
     }
 
     override fun onDestroy() {
         instance = null
+        HierarchyServer.stop()
         super.onDestroy()
     }
 
@@ -115,6 +121,12 @@ class MCPAccessibilityService : AccessibilityService() {
                 "PLAY_MEDIA" -> playMedia((params["durationSeconds"] as? Number)?.toLong() ?: 30L)
                 "PAUSE_MEDIA" -> pauseMedia()
                 "GOTO_URL" -> gotoUrl(params["url"] as String)
+                // También por WebSocket, para los teléfonos que no van por ADB.
+                "DUMP_HIERARCHY" -> {
+                    val xml = dumpHierarchyXml()
+                    CommandResult("DUMP_HIERARCHY", xml.length > 100, "Jerarquía leída (${xml.length} caracteres)",
+                        extraData = mapOf("hierarchy" to xml))
+                }
                 else -> CommandResult(commandType, false, "Unknown command: $commandType")
             }
         } catch (e: Exception) {
@@ -468,6 +480,85 @@ class MCPAccessibilityService : AccessibilityService() {
                 collectScrollableNodes(child, result)
             }
         }
+    }
+
+    /**
+     * Vuelca la jerarquía de la pantalla en el mismo XML que produce
+     * `uiautomator dump`.
+     *
+     * Se replica ese formato a propósito: el escritorio ya sabe interpretarlo, así
+     * que puede leer de aquí sin cambiar una línea. Y hace falta leer de aquí
+     * porque `uiautomator dump`, lanzado desde el PC, muere en estos teléfonos
+     * ("Killed") y en apps con vídeo continuo nunca alcanza el estado idle.
+     *
+     * Se recorre el árbol de accesibilidad, que ya está activo para pulsar por
+     * texto; esto solo lo expone entero en vez de nodo a nodo.
+     */
+    fun dumpHierarchyXml(): String {
+        val raiz = rootInActiveWindow ?: return "<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>\n<hierarchy rotation=\"0\" />"
+        val sb = StringBuilder(64 * 1024)
+        sb.append("<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>\n")
+        sb.append("<hierarchy rotation=\"0\">\n")
+        try {
+            escribirNodo(raiz, sb, 0)
+        } catch (e: Exception) {
+            Log.w(TAG, "dumpHierarchy: ${e.message}")
+        }
+        sb.append("</hierarchy>")
+        return sb.toString()
+    }
+
+    private fun escribirNodo(nodo: AccessibilityNodeInfo, sb: StringBuilder, indice: Int) {
+        val r = android.graphics.Rect()
+        nodo.getBoundsInScreen(r)
+
+        sb.append("<node")
+        sb.append(" index=\"").append(indice).append('"')
+        sb.append(" text=\"").append(escapar(nodo.text?.toString())).append('"')
+        sb.append(" resource-id=\"").append(escapar(nodo.viewIdResourceName)).append('"')
+        sb.append(" class=\"").append(escapar(nodo.className?.toString())).append('"')
+        sb.append(" package=\"").append(escapar(nodo.packageName?.toString())).append('"')
+        sb.append(" content-desc=\"").append(escapar(nodo.contentDescription?.toString())).append('"')
+        sb.append(" checkable=\"").append(nodo.isCheckable).append('"')
+        sb.append(" checked=\"").append(nodo.isChecked).append('"')
+        sb.append(" clickable=\"").append(nodo.isClickable).append('"')
+        sb.append(" enabled=\"").append(nodo.isEnabled).append('"')
+        sb.append(" focusable=\"").append(nodo.isFocusable).append('"')
+        sb.append(" focused=\"").append(nodo.isFocused).append('"')
+        sb.append(" scrollable=\"").append(nodo.isScrollable).append('"')
+        sb.append(" long-clickable=\"").append(nodo.isLongClickable).append('"')
+        sb.append(" password=\"").append(nodo.isPassword).append('"')
+        sb.append(" selected=\"").append(nodo.isSelected).append('"')
+        sb.append(" bounds=\"[").append(r.left).append(',').append(r.top)
+          .append("][").append(r.right).append(',').append(r.bottom).append("]\"")
+
+        val hijos = nodo.childCount
+        if (hijos == 0) {
+            sb.append(" />\n")
+            return
+        }
+        sb.append(">\n")
+        for (i in 0 until hijos) {
+            nodo.getChild(i)?.let { escribirNodo(it, sb, i) }
+        }
+        sb.append("</node>\n")
+    }
+
+    private fun escapar(valor: String?): String {
+        if (valor.isNullOrEmpty()) return ""
+        val sb = StringBuilder(valor.length + 16)
+        for (c in valor) {
+            when (c) {
+                '&' -> sb.append("&amp;")
+                '<' -> sb.append("&lt;")
+                '>' -> sb.append("&gt;")
+                '"' -> sb.append("&quot;")
+                '\'' -> sb.append("&apos;")
+                // Los caracteres de control rompen el XML y no aportan nada.
+                else -> if (c.code < 0x20) sb.append(' ') else sb.append(c)
+            }
+        }
+        return sb.toString()
     }
 
     /**

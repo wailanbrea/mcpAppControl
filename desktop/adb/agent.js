@@ -5,35 +5,39 @@
 // escribe el XML. El sistema mata el proceso por presión de memoria, y en el feed
 // además nunca se alcanza el estado "idle" que ese volcado espera.
 //
-// Por eso TikMatrix instala dos APK en el teléfono (com.github.tikmatrix y su
-// .test): son un agente uiautomator2 que corre como instrumentación persistente y
-// expone una API JSON-RPC en el puerto 9008. Leyendo por ahí, la misma pantalla
-// que hacía fallar el volcado devuelve la jerarquía completa.
-//
-// Este módulo habla con ese agente y deja `uiautomator dump` como último recurso.
+// La solución es leer desde DENTRO del teléfono. El Agente Bsolutions expone la
+// jerarquía por HTTP desde su servicio de accesibilidad; los lectores de terceros
+// basados en uiautomator2 hacen lo mismo con su propia instrumentación. Este
+// módulo habla con cualquiera de los dos —mismo protocolo mínimo: /ping y
+// /jsonrpc/0— y deja `uiautomator dump` como último recurso.
 
 const { execFile } = require('child_process');
 
-// El agente propio de MCP AppControl (dev.mcp.agent) lee la pantalla por
-// accesibilidad, pero hoy no expone un comando que devuelva la jerarquía completa:
-// solo sabe pulsar por texto o por id. Hasta que lo tenga, aquí se habla con
-// cualquier agente compatible con uiautomator2 que haya en el teléfono.
+// Agentes que sabemos consultar, en orden de preferencia. Cada uno escucha en su
+// propio puerto DENTRO del teléfono; el Agente Bsolutions usa el 9009 para no
+// pelearse con el lector de terceros si ambos están instalados.
 //
-// El paquete NO está cableado a propósito: en cuanto dev.mcp.agent publique el
-// endpoint de jerarquía, basta con ponerlo el primero en esta lista y el resto
-// del código no cambia.
-const AGENT_PORT = 9008;
-const PAQUETES_POR_DEFECTO = ['dev.mcp.agent', 'com.github.tikmatrix'];
+// El sufijo .debug existe porque la compilación de depuración del agente lo añade
+// a su applicationId: sin listarlo, el agente instalado no se reconocería.
+const AGENTES_POR_DEFECTO = [
+  { paquete: 'dev.mcp.agent',        puertoRemoto: 9009, propio: true },
+  { paquete: 'dev.mcp.agent.debug',  puertoRemoto: 9009, propio: true },
+  { paquete: 'com.github.tikmatrix', puertoRemoto: 9008, propio: false },
+];
 
-// serial -> { puerto, paquete }
+// serial -> { puerto, paquete, puertoRemoto }
 const sesiones = new Map();
 let siguientePuerto = 9700;
 let resolveAdb = () => 'adb';
-let paquetes = [...PAQUETES_POR_DEFECTO];
+let agentes = [...AGENTES_POR_DEFECTO];
 
 function init({ adbResolver, agentPackages } = {}) {
   if (adbResolver) resolveAdb = adbResolver;
-  if (Array.isArray(agentPackages) && agentPackages.length) paquetes = [...agentPackages];
+  if (Array.isArray(agentPackages) && agentPackages.length) {
+    agentes = agentPackages.map(a => (typeof a === 'string'
+      ? { paquete: a, puertoRemoto: 9009, propio: true }
+      : a));
+  }
 }
 
 function adbCmd(args, timeout = 15000) {
@@ -50,55 +54,65 @@ async function ping(puerto) {
   } catch (_) { return false; }
 }
 
-// Qué agentes compatibles hay realmente instalados en este teléfono.
-async function paquetesPresentes(serial) {
+// Qué agentes de los que sabemos consultar hay realmente en este teléfono.
+async function agentesPresentes(serial) {
   const salida = await adbCmd(['-s', serial, 'shell', 'pm', 'list', 'packages']).catch(() => '');
   const instalados = salida.split(/\r?\n/).map(l => l.replace(/^package:/, '').trim());
-  return paquetes.filter(p => instalados.includes(p));
+  return agentes.filter(a => instalados.includes(a.paquete));
 }
 
-// Arranca la instrumentación. No se espera a que termine: queda viva sirviendo.
-async function arrancarAgente(serial, paquete) {
-  execFile(resolveAdb(), ['-s', serial, 'shell', 'am', 'instrument', '-w', '-r',
-    '-e', 'debug', 'false', '-e', 'class', `${paquete}.stub.Stub`,
-    `${paquete}.test/androidx.test.runner.AndroidJUnitRunner`],
-    { timeout: 0 }, () => {});
+// Despierta al agente. El propio sirve desde su servicio de accesibilidad, así
+// que basta con abrirlo; el de terceros necesita arrancar su instrumentación.
+async function arrancarAgente(serial, agente) {
+  if (!agente.propio) {
+    execFile(resolveAdb(), ['-s', serial, 'shell', 'am', 'instrument', '-w', '-r',
+      '-e', 'debug', 'false', '-e', 'class', `${agente.paquete}.stub.Stub`,
+      `${agente.paquete}.test/androidx.test.runner.AndroidJUnitRunner`],
+      { timeout: 0 }, () => {});
+  } else {
+    await adbCmd(['-s', serial, 'shell', 'monkey', '-p', agente.paquete,
+      '-c', 'android.intent.category.LAUNCHER', '1']).catch(() => {});
+  }
   await new Promise(r => setTimeout(r, 2500));
 }
 
-// Devuelve el puerto local ya enlazado con el agente, arrancándolo si hace falta.
+// Enlaza un puerto local con el del agente dentro del teléfono.
+async function enlazar(serial, puertoLocal, puertoRemoto) {
+  await adbCmd(['-s', serial, 'forward', `tcp:${puertoLocal}`, `tcp:${puertoRemoto}`]);
+}
+
+// Devuelve el puerto local ya enlazado con un agente que responde.
 async function asegurar(serial) {
   const previa = sesiones.get(serial);
   if (previa && await ping(previa.puerto)) return previa.puerto;
 
   const puerto = previa?.puerto || siguientePuerto++;
-  try {
-    await adbCmd(['-s', serial, 'forward', `tcp:${puerto}`, `tcp:${AGENT_PORT}`]);
-  } catch (e) {
-    throw new Error(`no se pudo enlazar el puerto del agente: ${e.message}`);
-  }
-  sesiones.set(serial, { puerto });
-
-  if (await ping(puerto)) return puerto;
-
-  // No responde: levantarlo. Se prueba con cada agente compatible presente,
-  // primero por instrumentación y si no abriendo su actividad.
-  const presentes = await paquetesPresentes(serial);
+  const presentes = await agentesPresentes(serial);
   if (!presentes.length) {
-    throw new Error(`ningún agente de UI instalado (se buscaron: ${paquetes.join(', ')})`);
+    throw new Error(`ningún agente de UI instalado (se buscaron: ${agentes.map(a => a.paquete).join(', ')})`);
   }
 
-  for (const paquete of presentes) {
-    await arrancarAgente(serial, paquete);
-    if (await ping(puerto)) { sesiones.set(serial, { puerto, paquete }); return puerto; }
+  // Se prueba cada agente presente en orden de preferencia: primero tal cual,
+  // y si no contesta se le despierta y se reintenta.
+  for (const agente of presentes) {
+    try {
+      await enlazar(serial, puerto, agente.puertoRemoto);
+    } catch (e) {
+      continue;   // no se pudo enlazar con este: probar el siguiente
+    }
+    if (await ping(puerto)) {
+      sesiones.set(serial, { puerto, paquete: agente.paquete, puertoRemoto: agente.puertoRemoto });
+      return puerto;
+    }
 
-    await adbCmd(['-s', serial, 'shell', 'monkey', '-p', paquete,
-      '-c', 'android.intent.category.LAUNCHER', '1']).catch(() => {});
-    await new Promise(r => setTimeout(r, 2500));
-    if (await ping(puerto)) { sesiones.set(serial, { puerto, paquete }); return puerto; }
+    await arrancarAgente(serial, agente);
+    if (await ping(puerto)) {
+      sesiones.set(serial, { puerto, paquete: agente.paquete, puertoRemoto: agente.puertoRemoto });
+      return puerto;
+    }
   }
 
-  throw new Error(`el agente del dispositivo no responde en el puerto ${AGENT_PORT}`);
+  throw new Error(`ningún agente respondió (probados: ${presentes.map(a => `${a.paquete}:${a.puertoRemoto}`).join(', ')})`);
 }
 
 async function jsonrpc(puerto, method, params = [], timeout = 25000) {
@@ -127,4 +141,4 @@ async function disponible(serial) {
 
 function olvidar(serial) { sesiones.delete(serial); }
 
-module.exports = { init, dump, disponible, asegurar, jsonrpc, olvidar, PAQUETES_POR_DEFECTO };
+module.exports = { init, dump, disponible, asegurar, jsonrpc, olvidar, AGENTES_POR_DEFECTO };

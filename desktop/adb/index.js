@@ -642,10 +642,24 @@ async function execute(serial, command, params) {
         const instalados = [];
         const fallos = [];
 
-        const instalar = async (ruta, etiqueta) => {
+        const instalar = async (ruta, etiqueta, paquete) => {
           if (!fs.existsSync(ruta)) return false;
-          const out = String(await adb(['-s', serial, 'install', '-r', '-g', ruta], { timeout: 180000 })
+          let out = String(await adb(['-s', serial, 'install', '-r', '-g', ruta], { timeout: 180000 })
             .catch(e => e.message || ''));
+
+          // Firma distinta a la del APK ya instalado: Android no deja actualizar
+          // encima. Hay que desinstalar, y eso revoca el permiso de accesibilidad,
+          // así que se avisa en el resultado para que el operador lo reactive.
+          if (/signatures do not match|INSTALL_FAILED_UPDATE_INCOMPATIBLE/i.test(out) && paquete) {
+            await adb(['-s', serial, 'uninstall', paquete], { timeout: 60000 }).catch(() => {});
+            out = String(await adb(['-s', serial, 'install', '-r', '-g', ruta], { timeout: 180000 })
+              .catch(e => e.message || ''));
+            if (/Success/i.test(out)) {
+              instalados.push(`${etiqueta} (reinstalado: reactiva su permiso de accesibilidad)`);
+              return true;
+            }
+          }
+
           if (/Success/i.test(out)) { instalados.push(etiqueta); return true; }
           fallos.push(`${etiqueta}: ${explainInstallError(out)}`);
           return false;
@@ -658,8 +672,16 @@ async function execute(serial, command, params) {
           path.resolve(__dirname, '..', '..', 'android-agent', 'mcp-agent-debug.apk'),
         ].filter(Boolean).find(r => { try { return fs.existsSync(r); } catch (_) { return false; } });
 
-        if (propio) await instalar(propio, 'Agente Bsolutions (dev.mcp.agent)');
-        else fallos.push('no se encontró el APK del Agente Bsolutions');
+        if (propio) {
+          // El paquete lleva sufijo .debug en la compilación de depuración; se
+          // intenta desinstalar el que corresponda si hubiera choque de firmas.
+          const yaInstalados = String(await shell(serial, ['pm', 'list', 'packages']).catch(() => ''));
+          const paqueteExistente = ['dev.mcp.agent.debug', 'dev.mcp.agent']
+            .find(pk => yaInstalados.includes(`package:${pk}`)) || 'dev.mcp.agent.debug';
+          await instalar(propio, 'Agente Bsolutions', paqueteExistente);
+        } else {
+          fallos.push('no se encontró el APK del Agente Bsolutions');
+        }
 
         // 2. Lector de UI compatible con uiautomator2, si está disponible.
         const appData = process.env.APPDATA || path.join(process.env.USERPROFILE || '', 'AppData', 'Roaming');
